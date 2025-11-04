@@ -6,11 +6,25 @@ class User(db.Model, UserMixin):
     username = db.Column(db.String(80), unique = True, nullable = False)
     password = db.Column(db.String(200), nullable = False)
     role = db.Column(db.String(50), nullable = False)
+    status = db.Column(db.String(50), nullable = False, default = 'active') # active / blacklisted
+
+class Department(db.Model):
+    id = db.Column(db.Integer, primary_key = True)
+    name = db.Column(db.String(100), unique = True, nullable = False)
+    description = db.Column(db.Text, nullable = True)
+    doctors = db.relationship('Doctor', backref='department', lazy=True)
+
+    def __repr__(self):
+        return f'<Department {self.name}>'
 
 class Doctor(db.Model):
     id = db.Column(db.Integer, primary_key = True)
     name = db.Column(db.String(100), nullable = False)
-    specialization = db.Column(db.String(100), nullable = False)
+    #specialization = db.Column(db.String(100), nullable = False)
+    department_id = db.Column(db.Integer, db.ForeignKey('department.id'), nullable = False)
+    contact = db.Column(db.String(100), nullable = True)
+    experience = db.Column(db.Integer, nullable = True)
+    qualification = db.Column(db.String(200), nullable = True)
     #Link to user model for login credentials
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable = False)
     user = db.relationship('User', backref=db.backref('doctor', uselist = False))
@@ -35,6 +49,31 @@ class Appointment(db.Model):
 
     doctor = db.relationship('Doctor', backref=db.backref('appointments'))
     patient = db.relationship('Patient', backref=db.backref('appointments'))
+
+# This model stores the doctor's *default weekly schedule*
+class DoctorAvailability(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # We use 0 for Monday, 1 for Tuesday, ..., 6 for Sunday
+    day_of_week = db.Column(db.Integer, nullable=False) 
+    
+    # Morning Shift
+    morning_start_time = db.Column(db.Time, nullable=True)
+    morning_end_time = db.Column(db.Time, nullable=True)
+    
+    # Evening Shift
+    evening_start_time = db.Column(db.Time, nullable=True)
+    evening_end_time = db.Column(db.Time, nullable=True)
+    
+    # Link to the doctor
+    doctor_id = db.Column(db.Integer, db.ForeignKey('doctor.id'), nullable=False)
+    doctor = db.relationship('Doctor', backref=db.backref('availability'))
+
+    # A doctor can only have one entry per day of the week
+    __table_args__ = (db.UniqueConstraint('doctor_id', 'day_of_week', name='_doctor_day_uc'),)
+
+    def __repr__(self):
+        return f'<Availability {self.doctor.name} - Day {self.day_of_week}>'
 
 
 class Treatment(db.Model):

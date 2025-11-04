@@ -1,2 +1,144 @@
-<h1>Welcome, Doctor !</h1>
-<a href="{{url_for('logout')}}">Logout</a>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doctor Dashboard -HMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('doctor_dashboard') }}">HMS Doctors Dashboard</a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+                    <li class="nav-item">
+                      <span class="navbar-text text-light me-3">
+                        Welcome, Dr.{{ doctor.name }}
+                      </span>
+                    </li>
+                </ul>
+                <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <h1>Your Dashboard</h1>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h3>Upcoming Appointments</h3>
+                    </div>
+                    <div class="card-body" style="max-height: 500px; overflow-y: auto;">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Time</th>
+                                    <th>Patient</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if appointments %}
+                                    {% for appt in appointments %}
+                                    <tr>
+                                        <td>{{ appt.date.strftime('%b %d, %Y') }}</td>
+                                        <td>{{ appt.time.strftime('%I:%M %p') }}</td>
+                                        <td>{{ appt.patient.name }}</td>
+                                        <td>
+                                            <a href="#" class="btn btn-sm btn-info">View History</a>
+                                            <a href="#" class="btn btn-sm btn-success">Mark Complete</a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center">No upcoming appointments.</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h3>Manage Your Weekly Schedule</h3>
+                    </div>
+                    <div class="card-body" style="max-height: 500px; overflow-y: auto;">
+                        <p class="text-muted">Set your default weekly hours. This schedule will repeat, but patients will see the next 7 available days.</p>
+                        
+                        <form action="{{ url_for('update_schedule') }}" method="POST">
+                            
+                            {% for day in days_list %}
+                                {% set day_index = day.day_of_week %}
+                                {% set day_schedule = schedule[day_index] %}
+
+                                <div class="mb-3 p-3 border rounded bg-light">
+                                    <h5 class="mb-3">{{ day.date.strftime('%A, %b %d') }}</h5>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6 mb-2">
+                                            <label class="form-label small">Morning Shift</label>
+                                            <div class="input-group input-group-sm">
+                                                <input type="time" class="form-control" 
+                                                       name="{{ day_index }}_morning_start"
+                                                       value="{{ day_schedule.morning_start_time.strftime('%H:%M') if day_schedule.morning_start_time else '' }}">
+                                                <input type="time" class="form-control" 
+                                                       name="{{ day_index }}_morning_end"
+                                                       value="{{ day_schedule.morning_end_time.strftime('%H:%M') if day_schedule.morning_end_time else '' }}">
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="col-md-6 mb-2">
+                                            <label class="form-label small">Evening Shift</label>
+                                            <div class="input-group input-group-sm">
+                                                <input type="time" class="form-control" 
+                                                       name="{{ day_index }}_evening_start"
+                                                       value="{{ day_schedule.evening_start_time.strftime('%H:%M') if day_schedule.evening_start_time else '' }}">
+                                                <input type="time" class="form-control" 
+                                                       name="{{ day_index }}_evening_end"
+                                                       value="{{ day_schedule.evening_end_time.strftime('%H:%M') if day_schedule.evening_end_time else '' }}">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                            
+                            <button type="submit" class="btn btn-primary w-100 mt-3">Save Default Schedule</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
