@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patient History (Admin) - HMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('admin_dashboard') }}">HMS Admin</a>
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="mb-0">Patient Medical History</h1>
+            <a href="{{ url_for('manage_appointments') }}" class="btn btn-secondary">&laquo; Back to Appointments</a>
+        </div>
+
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header bg-light">
+                <h3 class="mb-0">Patient: {{ patient.name }}</h3>
+            </div>
+            <div class="card-body">
+                <p class="mb-1"><strong>Contact:</strong> {{ patient.contact }}</p>
+                <p class="mb-1"><strong>Username:</strong> {{ patient.user.username }}</p>
+            </div>
+        </div>
+
+        <h3 class="mb-3">Completed Visits</h3>
+        <div class="accordion" id="historyAccordion">
+            {% if appointments %}
+                {% for appt in appointments %}
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="heading-{{ appt.id }}">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ appt.id }}" aria-expanded="false" aria-controls="collapse-{{ appt.id }}">
+                            <strong>Visit on: {{ appt.date.strftime('%b %d, %Y') }} at {{ appt.time.strftime('%I:%M %p') }}</strong> 
+                            <span class="ms-2 badge bg-secondary">with Dr. {{ appt.doctor.name }}</span>
+                        </button>
+                    </h2>
+                    <div id="collapse-{{ appt.id }}" class="accordion-collapse collapse" aria-labelledby="heading-{{ appt.id }}" data-bs-parent="#historyAccordion">
+                        <div class="accordion-body">
+                            {% if appt.treatment %}
+                                <h3>Department: {{appt.doctor.department.name}}</h3>
+                                <hr>
+                                <h5>Diagnosis</h5>
+                                <p class="text-muted">{{ appt.treatment.diagnosis }}</p>
+                                <h5>Prescription</h5>
+                                <p class="text-muted">{{ appt.treatment.prescription }}</p>
+                                <h5>Doctor's Notes</h5>
+                                <p class="text-muted">{{ appt.treatment.notes }}</p>
+                            {% else %}
+                                <p class="text-danger">Error: This appointment is 'Completed' but has no treatment record.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="alert alert-info">This patient has no completed treatment history.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -49,9 +49,14 @@
 
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1>Welcome, {{ current_user.patient.name }}!</h1>
-            <a href="{{ url_for('book_appointment') }}" class="btn btn-primary btn-lg">
-                Book a New Appointment
-            </a>
+            <div>
+                <a href="{{ url_for('patient_history') }}" class="btn btn-outline-primary btn-lg">
+                    View My History
+                </a>
+                <a href="{{ url_for('book_appointment') }}" class="btn btn-primary btn-lg">
+                    Book a New Appointment
+                </a>
+            </div>
         </div>
         
         <h3>Your Upcoming Appointments</h3>

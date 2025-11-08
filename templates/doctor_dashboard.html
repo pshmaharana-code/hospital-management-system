@@ -70,8 +70,8 @@
                                         <td>{{ appt.time.strftime('%I:%M %p') }}</td>
                                         <td>{{ appt.patient.name }}</td>
                                         <td>
-                                            <a href="#" class="btn btn-sm btn-info">View History</a>
-                                            <a href="#" class="btn btn-sm btn-success">Mark Complete</a>
+                                            <a href="{{ url_for('doctor_patient_history', patient_id=appt.patient.id) }}" class="btn btn-sm btn-info">View History</a>
+                                            <a href="{{ url_for('mark_complete', appointment_id=appt.id) }}" class="btn btn-sm btn-success">Mark Complete</a>
                                         </td>
                                     </tr>
                                     {% endfor %}

@@ -210,6 +210,57 @@ def update_schedule():
 
     return redirect(url_for('doctor_dashboard'))
 
+@app.route('/doctor/mark_complete/<int:appointment_id>', methods = ['GET', 'POST'])
+@login_required
+def mark_complete(appointment_id):
+    if current_user.role != 'doctor':
+        abort(403)
+
+    appointment = Appointment.query.get_or_404(appointment_id)
+
+    if appointment.doctor.user_id != current_user.id:
+        abort(403)
+
+    if request.method == 'POST':
+        diagnosis = request.form.get('diagnosis')
+        prescription = request.form.get('prescription')
+        notes = request.form.get('notes')
+
+        new_treatment = Treatment(diagnosis=diagnosis, prescription=prescription, notes=notes, appointment_id=appointment.id)
+
+        appointment.status = 'Completed'
+
+        db.session.add(new_treatment)
+        db.session.commit()
+
+        flash('Appointment marked as completed and treatment details saved.','success')
+        return redirect(url_for('doctor_dashboard'))
+    
+    return render_template('mark_complete.html', appointment=appointment)
+
+@app.route('/doctor/patient_history/<int:patient_id>')
+@login_required
+def doctor_patient_history(patient_id):
+    if current_user.role != 'doctor':
+        abort(403)
+
+    patient = Patient.query.get_or_404(patient_id)
+
+    # Security check: Ensure the doctor is actually linked to this patient
+    # via at least one appointment (even if not completed)
+    link_exist = Appointment.query.filter_by(doctor_id=current_user.doctor.id, patient_id=patient.id).first()
+
+    if not link_exist and current_user.role != 'admin':
+        flash('You do not have permission to view this patient\'s history.', 'danger')
+        return redirect(url_for('doctor_dashboard'))
+    
+    completed_appointments = Appointment.query.filter_by(
+        patient_id=patient.id,
+        status='Completed'
+    ).order_by(Appointment.date.desc(), Appointment.time.desc()).all()
+
+    return render_template('doctor_patient_history.html', patient=patient, appointments=completed_appointments)
+
 
 @app.route('/patient/dashboard')
 @login_required
@@ -445,6 +496,22 @@ def book_final():
         db.session.rollback()
         flash(f'An error occurred while booking: {e}', 'danger')
         return redirect(url_for('patient_dashboard'))
+    
+@app.route('/patient/history')
+@login_required
+def patient_history():
+    if current_user.role != 'patient':
+        abort(403)
+
+    patient = Patient.query.filter_by(user_id=current_user.id).first()
+    if not patient:
+        flash('Patient profile not found.', 'danger')
+        return redirect(url_for('logout'))
+    
+    completed_appointments = Appointment.query.filter_by(patient_id=patient.id, status='Completed').order_by(Appointment.date.desc(), Appointment.time.desc()).all()
+
+    return render_template('patient_history.html', appointments=completed_appointments)
+
 
 @app.route('/admin/doctors')
 @login_required
@@ -706,6 +773,34 @@ def activate_patient(patient_id):
     
     flash('Patient has been re-activated.', 'success')
     return redirect(url_for('manage_patients'))
+
+@app.route('/admin/appointments')
+@login_required
+def manage_appointments():
+    if current_user.role != 'admin':
+        abort(403)
+
+    all_appointments = Appointment.query.order_by(Appointment.date.desc(), Appointment.time.desc()).all()
+
+    return render_template('manage_appointments.html', appointments=all_appointments)
+
+@app.route('/admin/patient_history/<int:patient_id>')
+@login_required
+def admin_patient_history(patient_id):
+    # Only admins can access this page
+    if current_user.role != 'admin':
+        abort(403)
+        
+    # Find the patient
+    patient = Patient.query.get_or_404(patient_id)
+    
+    # Find all 'Completed' appointments for this patient
+    completed_appointments = Appointment.query.filter_by(
+        patient_id=patient.id,
+        status='Completed'
+    ).order_by(Appointment.date.desc(), Appointment.time.desc()).all()
+    
+    return render_template('admin_patient_history.html', patient=patient, appointments=completed_appointments)
 
 from models import User, Doctor, Patient, Appointment, Treatment, Department, DoctorAvailability
 
