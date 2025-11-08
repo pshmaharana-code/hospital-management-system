@@ -1,0 +1,153 @@
+body {
+    /* New gradient background, closer to your reference */
+    background: linear-gradient(135deg, #1e1345 0%, #c850c0 100%);
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.login-container {
+    display: flex;
+    max-width: 1000px;
+    width: 90%;
+    position: relative;
+    z-index: 1;
+    border-radius: 20px;
+    overflow: hidden;
+    /* The right side (light) background */
+    background: #f4f7fc;
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+}
+
+/* --- Left Column (Blue Section with Image) --- */
+.login-image-section {
+    background: linear-gradient(135deg, #0d6efd 0%, #0d47a1 100%);
+    color: white;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    width: 50%;
+    min-height: 500px;
+    position: relative;
+    z-index: 2;
+    /* This creates the curve! */
+    border-top-left-radius: 20px;
+    border-bottom-left-radius: 20px;
+    border-top-right-radius: 100px;  /* This is the top part of the curve */
+    border-bottom-right-radius: 100px; /* This is the bottom part of the curve */
+}
+
+.login-image-section .logo {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin-bottom: 20px;
+    letter-spacing: 1px;
+}
+
+.login-image-section h1 {
+    font-weight: 700;
+    font-size: 3rem;
+    margin-bottom: 25px;
+}
+
+/* --- THIS IS THE FIX for the cut-off text --- */
+.login-image-section p {
+    font-size: 1rem;  /* Slightly smaller font */
+    opacity: 0.9;
+    line-height: 1.7; /* More space to wrap */
+    padding-left: 10px;  /* Added padding */
+    padding-right: 10px; /* Added padding */
+}
+
+.login-image-section img {
+    max-height: 250px;
+    margin-bottom: 30px !important;
+    position: relative;
+    z-index: 2;
+}
+
+/* --- Right Column (The Floating Form Card) --- */
+.login-form-section {
+    padding: 40px;
+    width: 50%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+    z-index: 3;
+}
+
+.login-form-card {
+    background-color: white;
+    border-radius: 12px;
+    padding: 30px;
+    /* This is the shadow that makes it "float" */
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    margin: 20px;
+}
+
+.login-form-section .h3 {
+    font-weight: 600;
+    margin-bottom: 25px;
+    color: #333;
+}
+
+/* --- FIX for the form fields --- */
+/* This styles standard inputs to look clean */
+.form-control {
+    border: none;
+    border-bottom: 2px solid #eee;
+    border-radius: 0;
+    padding-left: 0;
+}
+.form-control:focus {
+    box-shadow: none;
+    border-bottom-color: #0d6efd;
+}
+
+.login-form-section .btn-primary {
+    padding: 14px;
+    font-weight: 600;
+    border-radius: 8px;
+    transition: background-color 0.3s ease;
+}
+
+.login-form-section .text-center a {
+    color: #0d6efd;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+/* (Responsive @media query is the same as before) */
+@media (max-width: 768px) {
+    .login-container {
+        flex-direction: column;
+        max-width: 400px;
+        width: 90%;
+    }
+
+    .login-image-section,
+    .login-form-section {
+        width: 100%;
+        border-radius: 0;
+    }
+
+    .login-image-section {
+        border-radius: 20px 20px 0 0;
+        min-height: 250px;
+        /* We hide the complex curve on mobile */
+        border-top-right-radius: 0;
+        border-bottom-right-radius: 0;
+    }
+
+    .login-form-card {
+        margin: 0;
+        box-shadow: none;
+        border-radius: 0 0 20px 20px;
+    }
+}

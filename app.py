@@ -512,6 +512,28 @@ def patient_history():
 
     return render_template('patient_history.html', appointments=completed_appointments)
 
+@app.route('/patient/edit_profile', methods = ['GET', 'POST'])
+@login_required
+def patient_edit_profile():
+    if current_user.role != 'patient':
+        abort(403)
+
+    patient = Patient.query.filter_by(user_id=current_user.id).first()
+
+    if not patient:
+        flash('Patient profile not found.', 'danger')
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        patient.name = request.form.get('name')
+        patient.contact = request.form.get('contact')
+
+        db.session.commit()
+        flash('Your profile has been updated successfully!', 'success')
+        return redirect(url_for('patient_dashboard'))
+    
+    return render_template('patient_edit_profile.html', patient=patient)
+
 
 @app.route('/admin/doctors')
 @login_required

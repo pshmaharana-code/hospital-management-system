@@ -1,0 +1,16 @@
+body {
+    background-color: #f8f9fa; /* A very light, clean gray */
+    color: #333; /* A softer black for text */
+}
+
+/* We'll make all cards have a subtle shadow for a modern look */
+.card {
+    border: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+/* Custom button color to match our primary theme */
+.btn-primary {
+    background-color: #0d6efd; /* Bootstrap's default blue */
+    border-color: #0d6efd;
+}

@@ -1,93 +1,63 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Select Slot - HMS</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="{{ url_for('patient_dashboard') }}">HMS Patients Dashboard</a>
-            
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
+{% extends "layout.html" %}
 
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-                  {% if current_user.is_authenticated %}
-                    <li class="nav-item">
-                      <span class="navbar-text text-light me-3">
-                        Welcome, {{ current_user.patient.name }}
-                      </span>
-                    </li>
-                  {% endif %}
-                </ul>
-                <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+{% block title %}Select Slot - HMS{% endblock %}
 
-    <div class="container mt-4">
-        <div class="row justify-content-center">
-            <div class="col-md-10">
-                <div class="card shadow-sm">
-                    <div class="card-header bg-primary text-white">
-                        <h2 class="mb-0">Check Availability: Dr. {{ doctor.name }}</h2>
-                        <h5 class="mb-0 text-white-50">{{ doctor.department.name }}</h5>
+{% block nav_links %}{% endblock %}
+
+{% block content %}
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="mb-0">Check Availability: Dr. {{ doctor.name }}</h2>
+                    <h5 class="mb-0 text-white-50">{{ doctor.department.name }}</h5>
+                </div>
+                <div class="card-body">
+                    
+                    <div class="alert alert-info">
+                        Showing available 30-minute slots for the next 7 days.
                     </div>
-                    <div class="card-body">
+
+                    <div class="accordion" id="availabilityAccordion">
                         
-                        <div class="accordion" id="availabilityAccordion">
-                            
-                            {% for day in days_to_show %}
-                            <div class="accordion-item">
-                                <h2 class="accordion-header" id="heading-{{ loop.index }}">
-                                    <button class="accordion-button {% if not loop.first %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ loop.index }}" aria-expanded="{% if loop.first %}true{% else %}false{% endif %}" aria-controls="collapse-{{ loop.index }}">
-                                        <strong>{{ day.date.strftime('%A, %b %d, %Y') }}</strong>
-                                    </button>
-                                </h2>
-                                <div id="collapse-{{ loop.index }}" class="accordion-collapse collapse {% if loop.first %}show{% endif %}" aria-labelledby="heading-{{ loop.index }}" data-bs-parent="#availabilityAccordion">
-                                    <div class="accordion-body">
-                                        {% if day.slots %}
-                                            <div class="d-flex flex-wrap">
-                                            {% for slot in day.slots %}
-                                                {% if slot.status == 'Available' %}
-                                                    <a href="{{ url_for('confirm_booking', doctor_id=doctor.id, date=day.date.strftime('%Y-%m-%d'), time=slot.time.strftime('%H:%M')) }}" 
-                                                       class="btn btn-success m-1" style="width: 120px;">
-                                                        {{ slot.time.strftime('%I:%M %p') }}
-                                                    </a>
-                                                {% else %}
-                                                    <button class="btn btn-danger m-1" style="width: 120px;" disabled>
-                                                        {{ slot.time.strftime('%I:%M %p') }}
-                                                    </button>
-                                                {% endif %}
-                                            {% endfor %}
-                                            </div>
-                                        {% else %}
-                                            <p class="text-muted">No slots available for this day.</p>
-                                        {% endif %}
-                                    </div>
+                        {% for day in days_to_show %}
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="heading-{{ loop.index }}">
+                                <button class="accordion-button {% if not loop.first %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ loop.index }}" aria-expanded="{% if loop.first %}true{% else %}false{% endif %}" aria-controls="collapse-{{ loop.index }}">
+                                    <strong>{{ day.date.strftime('%A, %b %d, %Y') }}</strong>
+                                </button>
+                            </h2>
+                            <div id="collapse-{{ loop.index }}" class="accordion-collapse collapse {% if loop.first %}show{% endif %}" aria-labelledby="heading-{{ loop.index }}" data-bs-parent="#availabilityAccordion">
+                                <div class="accordion-body">
+                                    {% if day.slots %}
+                                        <div class="d-flex flex-wrap">
+                                        {% for slot in day.slots %}
+                                            {% if slot.status == 'Available' %}
+                                                <a href="{{ url_for('confirm_booking', doctor_id=doctor.id, date=day.date.strftime('%Y-%m-%d'), time=slot.time.strftime('%H:%M')) }}" 
+                                                   class="btn btn-success m-1" style="width: 120px;">
+                                                    {{ slot.time.strftime('%I:%M %p') }}
+                                                </a>
+                                            {% else %}
+                                                <button class="btn btn-danger m-1" style="width: 120px;" disabled>
+                                                    {{ slot.time.strftime('%I:%M %p') }}
+                                                </button>
+                                            {% endif %}
+                                        {% endfor %}
+                                        </div>
+                                    {% else %}
+                                        <p class="text-muted">No slots available for this day.</p>
+                                    {% endif %}
                                 </div>
                             </div>
-                            {% endfor %}
-                            
                         </div>
+                        {% endfor %}
+                        
                     </div>
-                    <div class="card-footer d-flex justify-content-between">
-                        <a href="{{ url_for('select_doctor', department_id=doctor.department_id) }}" class="btn btn-secondary">&laquo; Back to Doctors</a>
-                    </div>
+                </div>
+                <div class="card-footer d-flex justify-content-between">
+                    <a href="{{ url_for('select_doctor', department_id=doctor.department_id) }}" class="btn btn-secondary">&laquo; Back to Doctors</a>
                 </div>
             </div>
         </div>
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+{% endblock %}
