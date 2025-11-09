@@ -4,6 +4,12 @@ from sqlalchemy import or_
 from sqlalchemy import and_
 from flask_bcrypt import Bcrypt
 from datetime import datetime, date, time, timedelta
+import io
+from flask import send_file
+import matplotlib
+import matplotlib.pyplot as plt
+# This is a crucial line for running Matplotlib in a web server
+matplotlib.use('Agg')
 
 #initialize the flask application
 app = Flask(__name__)
@@ -823,6 +829,41 @@ def admin_patient_history(patient_id):
     ).order_by(Appointment.date.desc(), Appointment.time.desc()).all()
     
     return render_template('admin_patient_history.html', patient=patient, appointments=completed_appointments)
+
+@app.route('/admin_chart.png')
+@login_required
+def admin_chart():
+    if current_user.role != 'admin':
+        abort(403)
+
+    docto_count = Doctor.query.count()
+    patient_count = Patient.query.count()
+    appointment_count = Appointment.query.count()
+
+    labels = ['Doctors', 'Patients', 'Appointments']
+    data = [docto_count, patient_count, appointment_count]
+
+    fig, ax = plt.subplots(figsize=(8, 4))
+
+    colors = ['#28a745', '#17a2b8', '#ffc107']
+    ax.bar(labels, data, color=colors)
+
+    ax.set_title('System Overview', fontsize=16)
+    ax.set_ylabel('Total Count', fontsize=12)
+
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    fig.patch.set_alpha(0.0)
+    ax.patch.set_alpha(0.0)
+
+    img = io.BytesIO()
+    plt.savefig(img, format='png', bbox_inches='tight')
+    plt.close(fig) # Close the figure to free up memory
+    img.seek(0)
+
+    return send_file(img, mimetype='image/png')
+
 
 from models import User, Doctor, Patient, Appointment, Treatment, Department, DoctorAvailability
 

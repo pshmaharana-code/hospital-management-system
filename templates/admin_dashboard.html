@@ -48,5 +48,20 @@
             </div>
         </div>
     </div>
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h3>System Overview</h3>
+                </div>
+                <div class="card-body text-center">
+                    <img src="{{ url_for('admin_chart') }}" 
+                         class="img-fluid" 
+                         alt="Admin Dashboard Chart"
+                         style="max-height: 300px;">
+                </div>
+            </div>
+        </div>
+    </div>
     
 {% endblock %}
