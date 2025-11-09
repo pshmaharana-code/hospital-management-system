@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome - Hospital Management System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+
+    <div class="top-bar d-none d-md-block">
+        <div class="container d-flex justify-content-between">
+            <div class="contact-info">
+                <span><i class="fas fa-phone"></i> +1-123-456-7890</span>
+                <span class="ms-3"><i class="fas fa-envelope"></i> support@hospital.com</span>
+            </div>
+            <div class="social-icons">
+                <a href="#"><i class="fab fa-facebook-f"></i></a>
+                <a href="#"><i class="fab fa-twitter"></i></a>
+                <a href="#"><i class="fab fa-instagram"></i></a>
+            </div>
+        </div>
+    </div>
+
+    <nav class="navbar navbar-expand-lg main-navbar">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('home') }}">Hospital Management</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="mainNav">
+                <ul class="navbar-nav mx-auto">
+                    <li class="nav-item"><a class="nav-link" href="#">Home</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#">About</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#">Doctors</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#">Services</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#">Blog</a></li>
+                </ul>
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-search"></i></a></li>
+                    <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-bars"></i></a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <section class="hero-section">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-6 hero-text">
+                    <h1>Your Partner In Health and Wellness</h1>
+                    <p class="lead">
+                        Our integrated system provides seamless access to doctors, appointment booking,
+                        and your complete medical history, all in one secure place.
+                    </p>
+                    <a href="{{ url_for('login') }}" class="btn btn-primary btn-lg">
+                        Get Started
+                    </a>
+                </div>
+                <div class="col-lg-6 hero-image-container d-none d-lg-block">
+                    <img src="{{ url_for('static', filename='img/doctor_login_image.png') }}" alt="Doctor" class="hero-image" style="max-height: 400px;">
+                    <div class="hero-image-bg"></div>
+                    <span class="hero-plus" style="top: 20%; right: 10%;">+</span>
+                    <span class="hero-plus" style="top: 40%; left: 10%;">+</span>
+                    <span class="hero-plus" style="bottom: 20%; right: 20%;">+</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="services-section">
+        <div class="container">
+            <div class="section-title">
+                <h2>Our Healthcare Service</h2>
+                <p>We provide a wide range of departments to cater to all your health needs. Access specialized doctors and services with ease.</p>
+            </div>
+            
+            <div class="row">
+                <div class="col-lg-4 col-md-6">
+                    <div class="service-card">
+                        <div class="service-card-icon"><i class="fas fa-clinic-medical"></i></div>
+                        <h4>Emergency Department</h4>
+                        <p>24/7 critical care and emergency services.</p>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-6">
+                    <div class="service-card">
+                        <div class="service-card-icon"><i class="fas fa-child"></i></div>
+                        <h4>Pediatric Department</h4>
+                        <p>Specialized care for infants, children, and adolescents.</p>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-6">
+                    <div class="service-card">
+                        <div class="service-card-icon"><i class="fas fa-user-md"></i></div>
+                        <h4>General Physician</h4>
+                        <p>Comprehensive primary care for all ages.</p>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-6">
+                    <div class="service-card">
+                        <div class="service-card-icon"><i class="fas fa-brain"></i></div>
+                        <h4>Neurology Department</h4>
+                        <p>Advanced care for brain and nervous system disorders.</p>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-6">
+                    <div class="service-card">
+                        <div class="service-card-icon"><i class="fas fa-heartbeat"></i></div>
+                        <h4>Cardiology Department</h4>
+                        <p>Expert diagnosis and treatment of heart conditions.</p>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-6">
+                    <div class="service-card">
+                        <div class="service-card-icon"><i class="fas fa-bone"></i></div>
+                        <h4>Orthopedics</h4>
+                        <p>Treatment for bones, joints, and muscle injuries.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="text-center p-4 bg-light">
+        <p class="mb-0">&copy; 2025 Hospital Management System. All rights reserved.</p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

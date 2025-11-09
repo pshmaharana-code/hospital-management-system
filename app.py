@@ -36,7 +36,7 @@ def load_user(user_id):
 
 @app.route('/')
 def home():
-    return "Database Configured"
+    return render_template('index.html')
 
 
 @app.route('/login', methods=['GET', 'POST'])
