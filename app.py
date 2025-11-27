@@ -630,6 +630,30 @@ def add_doctor():
     departments = Department.query.all()
     return render_template('add_doctor.html', departments=departments)
 
+@app.route('/admin/departments/add', methods=['GET', 'POST'])
+def add_departments():
+    if current_user.role != 'admin':
+        abort(403)
+
+    if request.method == 'POST':
+        department = request.form.get('name')
+        description = request.form.get('description')
+
+        exist_dept = Department.query.filter_by(name=department).first()
+        if exist_dept:
+                flash('Department already exist.', 'danger')
+                return render_template('add_departments.html')
+
+        new_dept = Department(name=department, description=description)
+        db.session.add(new_dept)
+        db.session.commit()
+
+        flash('Department created successfully.', 'success')
+        return redirect(url_for('add_departments'))
+
+    return render_template('add_departments.html')
+
+
 @app.route('/admin/doctors/edit/<int:doctor_id>', methods = ['GET', 'POST'])
 @login_required
 def edit_doctor(doctor_id):

@@ -1,0 +1,50 @@
+{% extends "layout.html" %}
+
+{% block title %}Add Doctor - HMS{% endblock %}
+
+{% block nav_links %}
+    <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('manage_doctors') }}">Manage Doctors</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('manage_patients') }}">Manage Patients</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('manage_appointments') }}">All Appointments</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('add_departments') }}">Add Departments</a>
+    </li>
+{% endblock %}
+
+{% block content %}
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="mb-0">Add New Department</h2>
+                </div>
+                <div class="card-body">
+                    <form action="{{ url_for('add_departments') }}" method="post">
+                        <h4 class="mb-3">Department Details</h4>
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Name of the Department</label>
+                            <input type="text" class="form-control" id="name" name="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Information about this department</label>
+                            <input type="text" class="form-control" id="description" name="description">
+                        </div> 
+
+                        <hr class="my-4">
+
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-success">Create Department</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
