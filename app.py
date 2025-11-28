@@ -631,6 +631,7 @@ def add_doctor():
     return render_template('add_doctor.html', departments=departments)
 
 @app.route('/admin/departments/add', methods=['GET', 'POST'])
+@login_required
 def add_departments():
     if current_user.role != 'admin':
         abort(403)
