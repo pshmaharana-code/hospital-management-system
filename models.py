@@ -47,7 +47,7 @@ class Appointment(db.Model):
     #"many" appointments can link to "one" doctor (one-to-many), "ForeignKey goes to many side (here appointment)"
     patient_id = db.Column(db.Integer, db.ForeignKey('patient.id'), nullable = False)
 
-    doctor = db.relationship('Doctor', backref=db.backref('appointments'))
+    doctor = db.relationship('Doctor', backref=db.backref('appointments', cascade="all, delete-orphan"))
     patient = db.relationship('Patient', backref=db.backref('appointments'))
 
 # This model stores the doctor's *default weekly schedule*
@@ -67,7 +67,7 @@ class DoctorAvailability(db.Model):
     
     # Link to the doctor
     doctor_id = db.Column(db.Integer, db.ForeignKey('doctor.id'), nullable=False)
-    doctor = db.relationship('Doctor', backref=db.backref('availability'))
+    doctor = db.relationship('Doctor', backref=db.backref('availability', cascade="all, delete-orphan"))
 
     # A doctor can only have one entry per day of the week
     __table_args__ = (db.UniqueConstraint('doctor_id', 'day_of_week', name='_doctor_day_uc'),)

@@ -50,9 +50,7 @@ def login():
 
         #check if user exist and password is correct, AND User is Active
         if user and bcrypt.check_password_hash(user.password, password) and user.status == 'active':
-            login_user(user) #Logs the user in
-            #for now we'll just show a massage
-            #later we'll redirect it to correct dashboard.
+            login_user(user)
             flash('Login Successful!', 'success')
             
             if user.role == "admin":
@@ -151,13 +149,13 @@ def doctor_dashboard():
         Appointment.date >= today
     ).order_by(Appointment.date.asc(), Appointment.time.asc()).all()
 
-    # --- NEW: Fetch 7-Day Availability Schedule ---
+    #Fetch 7-Day Availability Schedule
     # We fetch all 7 days for this doctor, ordered by the day (0=Mon, 1=Tue...)
     availability_schedule = DoctorAvailability.query.filter_by(
         doctor_id=doctor.id
     ).order_by(DoctorAvailability.day_of_week.asc()).all()
 
-    # --- NEW: Generate 7-Day Date List ---
+    #Generate 7-Day Date List
     # This list will contain (date_obj, day_name, day_of_week) for the next 7 days
     days_list = []
     for i in range(7):
@@ -605,7 +603,7 @@ def add_doctor():
         doctor_id = new_doctor.id
         
         # Create a default 7-day availability schedule for this doctor
-        # We use 0=Monday, 1=Tuesday, ... 6=Sunday
+        # We use 0=Monday, 1=Tuesday,and so on 6=Sunday
         default_availability = []
         for day in range(7):
             default_availability.append(
