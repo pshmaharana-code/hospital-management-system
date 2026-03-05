@@ -269,7 +269,7 @@ def update_schedule():
         db.session.commit()
         flash('Your schedule has been updated successfully.', 'success')
 
-    except:
+    except Exception as e:
         db.session.rollback()
         flash(f'An error occurred while updating your schedule: {e}', 'danger')
 
