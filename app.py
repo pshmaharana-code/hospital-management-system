@@ -1,4 +1,6 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, abort, session
+from flask_cors import CORS
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt
+from flask import Flask, render_template, request, redirect, url_for, flash, abort, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import or_
 from sqlalchemy import and_
@@ -13,6 +15,14 @@ matplotlib.use('Agg')
 
 #initialize the flask application
 app = Flask(__name__)
+
+#allow the vue SPA to communicate with the flask api 
+CORS(app)
+
+# configure the jwt for secure token-based authentication
+#(we will move this secrete-key to .env file later before production)
+app.config["JWT_SECRET_KEY"] = "super-secrete-hms-key-change-later"
+jwt = JWTManager(app)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 app.config['SECRET_KEY'] = 'thisisasecretkey'
@@ -39,33 +49,50 @@ def home():
     return render_template('index.html')
 
 
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == "POST":
-        username = request.form.get('username')
-        password = request.form.get('password')
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    # 1. Vue will send JSON data, so we grab it using get_json() instead of request.form
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({"msg": "Missing JSON data"}), 400
 
-        #look for user in database
-        user = User.query.filter_by(username=username).first()
+    username = data.get('username')
+    password = data.get('password')
 
-        #check if user exist and password is correct, AND User is Active
-        if user and bcrypt.check_password_hash(user.password, password) and user.status == 'active':
-            login_user(user)
-            flash('Login Successful!', 'success')
+    # 2. Look for user in database (Same as your old logic!)
+    user = User.query.filter_by(username=username).first()
+
+    # 3. Check if user exists and password is correct
+    if user and bcrypt.check_password_hash(user.password, password):
+        
+        # 4. Handle Blacklisted Users
+        if user.status == 'blacklisted':
+            return jsonify({"msg": "This account has been blacklisted. Please contact support."}), 403
+        
+        # 5. Handle Active Users & Generate Token
+        if user.status == 'active':
             
-            if user.role == "admin":
-                return redirect(url_for('admin_dashboard'))
-            elif user.role == "doctor":
-                return redirect(url_for('doctor_dashboard'))
-            elif user.role == "patient":
-                return redirect(url_for('patient_dashboard'))
+            # Create the JWT Token. We use the user's ID as their "identity"
+            # We also attach the role so the Vue frontend knows where to redirect them!
+            access_token = create_access_token(
+                identity=str(user.id), 
+                additional_claims={"role": user.role}
+            )
             
-        elif user and user.status == 'blacklisted':
-            flash('This account has been blacklisted. Please contact support.', 'danger')     
-        else:
-            flash('Invalid username or password, Please try again.', 'danger')
+            # Return the token and user info as JSON
+            return jsonify({
+                "msg": "Login Successful!",
+                "access_token": access_token,
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "role": user.role
+                }
+            }), 200
 
-    return render_template('login.html')
+    # 6. If we get here, credentials failed
+    return jsonify({"msg": "Invalid username or password. Please try again."}), 401
 
 @app.route('/logout')
 def logout():
@@ -111,63 +138,97 @@ def register():
     return render_template('register.html')
 
 
-@app.route('/admin/dashboard')
-@login_required
-def admin_dashboard():
+@app.route('/api/admin/dashboard', methods=['GET'])
+@jwt_required()
+def api_admin_dashboard():
     #Authorization check : only admin can access this page
-    if current_user.role != 'admin':
-        abort(403)
+    claims = get_jwt()
+
+    if claims.get("role") != 'admin':
+        return jsonify({"msg": "Unauthorizes access. Admin only."}), 403
 
     #fetch statistic from database
     doctor_count = Doctor.query.count()
     patient_count = Patient.query.count()
     appointment_count = Appointment.query.count()
 
-    #pass the count to the templates
-    return render_template('admin_dashboard.html', doctor_count=doctor_count, patient_count=patient_count, appointment_count=appointment_count)
+    return jsonify({"msg": "Welcome to admin dashboard.",
+                    "stats": {
+                        "doctors": doctor_count,
+                        "patients": patient_count,
+                        "appointments": appointment_count
+                    }}), 200
 
-@app.route('/doctor/dashboard')
-@login_required
-def doctor_dashboard():
-    if current_user.role != 'doctor':
-        abort(403)
+@app.route('/api/doctor/dashboard', methods=['GET'])
+@jwt_required()
+def api_doctor_dashboard():
+    # 1. Security Check: Doctors only
+    claims = get_jwt()
+    if claims.get("role") != 'doctor':
+        return jsonify({"msg": "Unauthorized access. Doctors only."}), 403
     
-    #find the doctor profile linked to logged-in-user
-    doctor = Doctor.query.filter_by(user_id=current_user.id).first()
+    # 2. Find the doctor profile
+    current_user_id = int(get_jwt_identity())
+    doctor = Doctor.query.filter_by(user_id=current_user_id).first()
 
     if not doctor:
-        flash('Doctor profile not found.', 'Danger')
-        return redirect(url_for('logout'))
-
-    #get today's date
-    today = date.today()
+        return jsonify({"msg": "Doctor profile not found."}), 404
 
     today = date.today()
+
+    # 3. Fetch Upcoming Appointments
     upcoming_appointments = Appointment.query.filter(
         Appointment.doctor_id == doctor.id,
         Appointment.status == 'Booked',
         Appointment.date >= today
     ).order_by(Appointment.date.asc(), Appointment.time.asc()).all()
 
-    #Fetch 7-Day Availability Schedule
-    # We fetch all 7 days for this doctor, ordered by the day (0=Mon, 1=Tue...)
+    # Flatten appointments for JSON
+    appointments_list = []
+    for appt in upcoming_appointments:
+        appointments_list.append({
+            "id": appt.id,
+            "date": appt.date.strftime('%Y-%m-%d'),
+            "time": appt.time.strftime('%H:%M'),
+            "patient_name": appt.patient.name,
+            "patient_contact": appt.patient.contact
+        })
+
+    # 4. Fetch 7-Day Availability Schedule
     availability_schedule = DoctorAvailability.query.filter_by(
         doctor_id=doctor.id
     ).order_by(DoctorAvailability.day_of_week.asc()).all()
 
-    #Generate 7-Day Date List
-    # This list will contain (date_obj, day_name, day_of_week) for the next 7 days
+    # Flatten the schedule for JSON (handling None values carefully)
+    schedule_list = []
+    for slot in availability_schedule:
+        schedule_list.append({
+            "day_of_week": slot.day_of_week,
+            "morning_start_time": slot.morning_start_time.strftime('%H:%M') if slot.morning_start_time else None,
+            "morning_end_time": slot.morning_end_time.strftime('%H:%M') if slot.morning_end_time else None,
+            "evening_start_time": slot.evening_start_time.strftime('%H:%M') if slot.evening_start_time else None,
+            "evening_end_time": slot.evening_end_time.strftime('%H:%M') if slot.evening_end_time else None
+        })
+
+    # 5. Generate 7-Day Date List for the Vue calendar
+    # this list will contain (date_obj, date_name and day_of_week)
     days_list = []
     for i in range(7):
         day = today + timedelta(days=i)
         days_list.append({
-            'date': day,
-            'day_name': day.strftime('%A'), # e.g., "Tuesday"
-            'day_of_week': day.weekday()    # e.g., 1 (for Tuesday)
+            "date": day.strftime('%Y-%m-%d'),
+            "day_name": day.strftime('%A'),
+            "day_of_week": day.weekday()
         })
 
-    return render_template('doctor_dashboard.html', doctor=doctor, appointments=upcoming_appointments, schedule=availability_schedule, days_list=days_list) # Pass the new list
-
+    # 6. Send the massive data payload to Vue
+    return jsonify({
+        "doctor_name": doctor.name,
+        "department": doctor.department.name if doctor.department else None,
+        "upcoming_appointments": appointments_list,
+        "availability_schedule": schedule_list,
+        "days_list": days_list
+    }), 200
 @app.route('/doctor/update_schedule', methods = ['POST'])
 @login_required
 def update_schedule():
@@ -266,25 +327,47 @@ def doctor_patient_history(patient_id):
     return render_template('doctor_patient_history.html', patient=patient, appointments=completed_appointments)
 
 
-@app.route('/patient/dashboard')
-@login_required
-def patient_dashboard():
-    if current_user.role != 'patient':
-        abort(403)
+@app.route('/api/patient/dashboard', methods=['GET'])
+@jwt_required()
+def api_patient_dashboard():
+    #Authorization check : only admin can access this page
+    claims = get_jwt()
+    if claims.get("role") != 'patient':
+        return jsonify({"msg": "Unauthorized access. Patients only."}), 403
 
-    patient = Patient.query.filter_by(user_id=current_user.id).first()
+    # get the user id hidden inside the token
+    current_user_id = int(get_jwt_identity())
+
+    patient = Patient.query.filter_by(user_id=current_user_id).first()
     
     if not patient:
-        flash('Patient profile not found.', 'danger')
-        return redirect(url_for('logout'))
+        return jsonify({"msg": "Patient profile not found."}), 404
     
+    # fetch upcomming appointment
     upcoming_appointments = Appointment.query.filter(
         and_(
             Appointment.patient_id == patient.id,
             Appointment.status == 'Booked'
         )
     ).order_by(Appointment.date.asc()).all()
-    return render_template('patient_dashboard.html', appointments=upcoming_appointments)
+    
+    # we cannot send SQLAlchemy object directly to json.
+    # we must format them to clean dictionary first.
+    appointments_list = []
+    for appt in upcoming_appointments:
+        appointments_list.append({
+            "id": appt.id,
+            "date": appt.date.strftime('%Y-%m-%d'),
+            "time": appt.time.strftime('%H:%M'),
+            "doctor_name": appt.doctor.name,
+            "department": appt.doctor.department.name
+        })
+
+    # send the clean data back to the Vue frontend
+    return jsonify({"patient_name": patient.name,
+                    "upcomming_appointments": appointments_list
+                }), 200
+
 
 @app.route('/patient/book_appointment')
 @login_required
