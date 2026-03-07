@@ -12,7 +12,13 @@ const routes = [
     path: '/patient-dashboard',
     name: 'PatientDashboard',
     component: () => import('../views/PatientDashboard.vue'),
-    meta: { requiresAuth: true, requiredRole: 'patient'}  // patient only
+    meta: { requiresAuth: true, requiredRole: 'patient'}  // Patient only
+  },
+  {
+    path: '/book-appointment',
+    name: 'bookAppointment',
+    component: () => import('../views/BookAppointment.vue'),
+    meta: { requiresAuth: true, requiredRole: 'patient' } // Patient only
   },
   {
     path: '/doctor-dashboard',
