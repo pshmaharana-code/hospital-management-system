@@ -162,14 +162,20 @@ def api_admin_dashboard():
                     }}), 200
 
 @app.route('/api/doctor/dashboard', methods=['GET'])
-@jwt_required()
 def api_doctor_dashboard():
-    # 1. Security Check: Doctors only
+    # 1. CORS Preflight
+    if request.method == "OPTIONS":
+        return jsonify({"msg": "CORS Preflight OK"}), 200
+
+    # 2. Manual VIP Bouncer Check
+    verify_jwt_in_request()
+    
+    # 3. Security Check: Doctors only
     claims = get_jwt()
     if claims.get("role") != 'doctor':
         return jsonify({"msg": "Unauthorized access. Doctors only."}), 403
     
-    # 2. Find the doctor profile
+    # 4. Find the doctor profile
     current_user_id = int(get_jwt_identity())
     doctor = Doctor.query.filter_by(user_id=current_user_id).first()
 
@@ -178,7 +184,7 @@ def api_doctor_dashboard():
 
     today = date.today()
 
-    # 3. Fetch Upcoming Appointments
+    # 5. Fetch Upcoming Appointments
     upcoming_appointments = Appointment.query.filter(
         Appointment.doctor_id == doctor.id,
         Appointment.status == 'Booked',
@@ -196,7 +202,7 @@ def api_doctor_dashboard():
             "patient_contact": appt.patient.contact
         })
 
-    # 4. Fetch 7-Day Availability Schedule
+    # 6. Fetch 7-Day Availability Schedule
     availability_schedule = DoctorAvailability.query.filter_by(
         doctor_id=doctor.id
     ).order_by(DoctorAvailability.day_of_week.asc()).all()
@@ -212,7 +218,7 @@ def api_doctor_dashboard():
             "evening_end_time": slot.evening_end_time.strftime('%H:%M') if slot.evening_end_time else None
         })
 
-    # 5. Generate 7-Day Date List for the Vue calendar
+    # 7. Generate 7-Day Date List for the Vue calendar
     # this list will contain (date_obj, date_name and day_of_week)
     days_list = []
     for i in range(7):
@@ -223,7 +229,7 @@ def api_doctor_dashboard():
             "day_of_week": day.weekday()
         })
 
-    # 6. Send the massive data payload to Vue
+    # 8. Send the massive data payload to Vue
     return jsonify({
         "doctor_name": doctor.name,
         "department": doctor.department.name if doctor.department else None,
@@ -231,6 +237,7 @@ def api_doctor_dashboard():
         "availability_schedule": schedule_list,
         "days_list": days_list
     }), 200
+
 @app.route('/doctor/update_schedule', methods = ['POST'])
 @login_required
 def update_schedule():
