@@ -94,48 +94,50 @@ def api_login():
     # 6. If we get here, credentials failed
     return jsonify({"msg": "Invalid username or password. Please try again."}), 401
 
-@app.route('/logout')
-def logout():
-    logout_user() #Logs the user out
-    flash('You have been logged out.', 'info')
-    return redirect(url_for('login'))
+# @app.route('/logout')
+# def logout():
+#     logout_user() #Logs the user out
+#     flash('You have been logged out.', 'info')
+#     return redirect(url_for('login'))
 
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    if request.method == 'POST':
-        # Get form data
-        name = request.form.get('name')
-        contact = request.form.get('contact')
-        username = request.form.get('username')
-        password = request.form.get('password')
+@app.route('/api/auth/register', methods=['POST', 'OPTIONS'])
+def api_register():
+    # 1. CORS Preflight
+    if request.method == "OPTIONS":
+        return jsonify({"msg": "CORS Preflight OK"}), 200
+    
+    try:
+        data = request.get_json()
 
-        #check if username already exits in the database
-        existing_user = User.query.filter_by(username=username).first()
-        if existing_user:
-            if existing_user.status == 'blacklisted':
-                flash('This username is blacklisted and cannot be registered.', 'danger')
-            else:
-                flash('Username already exists. Please choose a different one.', 'danger')
-            return redirect(url_for('register'))
-        #If username is new , hash the password
+        username = data.get('username')
+        password = data.get('password')
+        name = data.get('name')
+        contact = data.get('contact')
+
+        if not username or not password or not name or not contact:
+            return jsonify({"msg": "Missing required fields"}), 400
+        
+        if User.query.filter_by(username=username).first():
+            return jsonify({"msg": "Username already exists"}), 409
+        
         hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
 
-        #create new user with patient role
-        new_user = User(username=username, password=hashed_password, role='patient')
-
-        #add and commit new user to get an id
+        new_user = User(username=username, password = hashed_password, role = 'patient', status='active')
         db.session.add(new_user)
-        db.session.commit()
+        db.session.flush()
 
-        #Create corresponding patient record
         new_patient = Patient(name=name, contact=contact, user_id=new_user.id)
         db.session.add(new_patient)
+
         db.session.commit()
 
-        flash('Registration successful! Please login.', 'success')
-        return redirect(url_for('login'))
-    
-    return render_template('register.html')
+        return jsonify({"msg": "Registration successful! You can now log in."}), 201
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        db.session.rollback() # If something crashes, undo the database changes
+        return jsonify({"msg": "Failed to register user"}), 500
 
 
 @app.route('/api/admin/dashboard', methods=['GET'])
@@ -632,42 +634,112 @@ def doctor_profile(doctor_id):
 
 
     
-@app.route('/patient/history')
-@login_required
-def patient_history():
-    if current_user.role != 'patient':
-        abort(403)
+@app.route('/api/patient/history', methods=['GET', 'OPTIONS'])
+def api_patient_history():
+    # 1. THE PREFLIGHT CHECK (Let the browser's security check pass)
+    if request.method == "OPTIONS":
+        return jsonify({"msg": "CORS Preflight OK"}), 200
 
-    patient = Patient.query.filter_by(user_id=current_user.id).first()
-    if not patient:
-        flash('Patient profile not found.', 'danger')
-        return redirect(url_for('logout'))
+    # 2. THE BOUNCER (Manually check the VIP badge)
+    verify_jwt_in_request()
+
+    try:
+        current_user_id = int(get_jwt_identity())
+
+        patient = Patient.query.filter_by(user_id=current_user_id).first()
+        if not patient:
+            return jsonify({"msg": "Patient profile not found."}), 404
+        
+        past_appointments = Appointment.query.filter(
+            Appointment.patient_id == patient.id,
+            Appointment.status.in_(['Completed', 'Cancelled'])
+        ).order_by(Appointment.date.desc(), Appointment.time.desc()).all()
+
+        history_list = []
+        for appt in past_appointments:
+            # Safely extract treatment details if the doctor has filled them out
+            diagnosis = appt.treatment.diagnosis if appt.treatment else "Pending"
+            prescription = appt.treatment.prescription if appt.treatment else "Pending"
+            notes = appt.treatment.notes if appt.treatment else "No notes provided."
+
+            history_list.append({
+                "id": appt.id,
+                "date": appt.date.strftime('%b %d, %Y'), 
+                "time": appt.time.strftime('%H:%M'),
+                "doctor_name": appt.doctor.name,
+                "department": appt.doctor.department.name,
+                "status": appt.status,
+                # Add our new treatment data!
+                "diagnosis": diagnosis,
+                "prescription": prescription,
+                "notes": notes
+            })
+
+        return jsonify(history_list), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"msg": "Failed to load patient history"}), 500
+
+@app.route('/api/patient/profile', methods = ['GET', 'PUT', 'OPTIONS'])
+def api_patient_profile():
     
-    completed_appointments = Appointment.query.filter_by(patient_id=patient.id, status='Completed').order_by(Appointment.date.desc(), Appointment.time.desc()).all()
-
-    return render_template('patient_history.html', appointments=completed_appointments)
-
-@app.route('/patient/edit_profile', methods = ['GET', 'POST'])
-@login_required
-def patient_edit_profile():
-    if current_user.role != 'patient':
-        abort(403)
-
-    patient = Patient.query.filter_by(user_id=current_user.id).first()
-
-    if not patient:
-        flash('Patient profile not found.', 'danger')
-        return redirect(url_for('login'))
+    if request.method == 'OPTIONS':
+        return jsonify({"msg": "CORS Preflight OK"}), 200
     
-    if request.method == 'POST':
-        patient.name = request.form.get('name')
-        patient.contact = request.form.get('contact')
+    verify_jwt_in_request()
 
-        db.session.commit()
-        flash('Your profile has been updated successfully!', 'success')
-        return redirect(url_for('patient_dashboard'))
-    
-    return render_template('patient_edit_profile.html', patient=patient)
+    try:
+        current_user_id = int(get_jwt_identity())
+        patient = Patient.query.filter_by(user_id=current_user_id).first()
+
+        if not patient:
+            return jsonify({"msg": "Patient profile not found."}), 404
+        
+        if request.method == 'GET':
+            return jsonify({
+                "name": patient.name,
+                "concat": patient.contact,
+                "age": patient.age,
+                "gender": patient.gender,
+                "blood_group": patient.blood_group,
+                "address": patient.address,
+                "username": patient.user.username # Pulling from the linked User table!
+            })
+        # 4. IF PUT: Save the updated data from Vue
+        if request.method == 'PUT':
+            data = request.get_json()
+            
+            # Update basic text fields safely
+            patient.name = data.get('name', patient.name)
+            patient.contact = data.get('contact', patient.contact)
+            patient.gender = data.get('gender', patient.gender)
+            patient.blood_group = data.get('blood_group', patient.blood_group)
+            patient.address = data.get('address', patient.address)
+            
+            # SAFE AGE CHECK: Prevent crashes if the age box is left empty
+            age_input = data.get('age')
+            if age_input == "" or age_input is None:
+                patient.age = None
+            else:
+                patient.age = int(age_input)
+            
+            # SMART USERNAME CHECK: Only update if they actually typed a NEW username
+            new_username = data.get('username')
+            if new_username and new_username != patient.user.username:
+                existing_user = User.query.filter_by(username=new_username).first()
+                if existing_user:
+                    return jsonify({"msg": "Username already taken by another user."}), 409
+                patient.user.username = new_username
+                
+            db.session.commit()
+            return jsonify({"msg": "Profile updated successfully!"}), 200
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"msg": "Failed to process profile request"}), 500
 
 
 @app.route('/admin/doctors')

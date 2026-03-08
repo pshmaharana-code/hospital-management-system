@@ -60,13 +60,26 @@ onMounted(() => {
 
 const handleLogout = () => {
     authStore.logout()  // this instantly implies the vault
-    router.push('/')   // change the channel back to the login page.
+    router.push('/login')   // change the channel back to the login page.
 }
 </script>
 
 <template>
     <div class="dashboard-container">
-        <h2>Patient Dashboard</h2>
+        <div class="dashboard-header">
+            <h2>Patient Dashboard</h2>
+            <div class="header-buttons">
+                <router-link to="/patient-profile" class="btn-secondary">
+                    Profile Settings
+                </router-link>
+                <router-link to="/patient-history" class="btn-secondary">
+                    View History
+                </router-link>
+                <router-link to="/book-appointment" class="btn-primary">
+                    + Book New Appointment
+                </router-link>
+            </div>
+        </div>
 
         <div class="welcome-card" v-if="authStore.user">
             <h3>Welcome back, {{  authStore.user.username }}!</h3>
@@ -102,7 +115,7 @@ const handleLogout = () => {
                 </table>
             </div>
 
-            <div v-else lass="empty-class">
+            <div v-else class="empty-class">
                 <p>You have no upcoming appointments</p>
             </div>
 
@@ -184,6 +197,62 @@ const handleLogout = () => {
 }
 .cancel-btn:hover {
   background-color: #c0392b;
+}
+/* --- Header & Button Styles --- */
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.dashboard-header h2 {
+  margin: 0;
+}
+
+.btn-primary {
+  background-color: #3498db;
+  color: white;
+  padding: 0.6rem 1.2rem;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: bold;
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  background-color: #2980b9;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+.btn-secondary {
+  background: #95a5a6;
+  color: white; 
+  padding: 0.6rem 1.2rem; 
+  border-radius: 6px; 
+  text-decoration: none; 
+  font-weight: bold; 
+}
+/* --- Header & Button Styles --- */
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap; /* Allows title and buttons to stack if screen is narrow */
+  gap: 1rem;
+}
+
+.dashboard-header h2 {
+  margin: 0;
+}
+
+/* NEW: Neatly spaces out the buttons without overlapping */
+.header-buttons {
+  display: flex;
+  gap: 15px; 
+  flex-wrap: wrap; 
+  align-items: center;
 }
 </style>
 

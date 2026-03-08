@@ -68,8 +68,10 @@ const handleLogin = async () => {
       </div>
 
       <button type="submit">Login</button>
-
     </form>
+    <div class="auth-footer" style="margin-top: 1.5rem; text-align: center; font-size: 0.9rem;">
+        <p>New user? <router-link to="/register" style="color: #3498db; font-weight: bold; text-decoration: none;">Register here</router-link></p>
+    </div>
 
     <p v-if="errorMessage">{{ errorMessage }}</p>
 

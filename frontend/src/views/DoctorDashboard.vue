@@ -8,7 +8,7 @@ const router = useRouter()
 
 const handleLogout = () => {
     authStore.logout()  // this instantly implies the vault
-    router.push('/')   // change the channel back to the login page.
+    router.push('/login')   // change the channel back to the login page.
 }
 </script>
 

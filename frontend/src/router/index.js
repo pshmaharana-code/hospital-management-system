@@ -5,8 +5,18 @@ import { useAuthStore } from '@/stores/auth'
 const routes = [
   {
     path: '/',
+    name: 'home',
+    component: () => import('../views/LandingPage.vue')
+  },
+  {
+    path: '/login',
     name: 'login',
     component: () => import('../views/LoginView.vue'),
+  },
+  {
+    path: '/register',
+    name: 'register',
+    component: () => import('../views/Register.vue')
   },
   {
     path: '/patient-dashboard',
@@ -15,10 +25,22 @@ const routes = [
     meta: { requiresAuth: true, requiredRole: 'patient'}  // Patient only
   },
   {
+    path: '/patient-profile',
+    name: 'patientProfile',
+    component: () => import('../views/PatientProfile.vue'),
+    meta: { requiresAuth: true, requiredRole: 'patient' }
+  },
+  {
     path: '/book-appointment',
     name: 'bookAppointment',
     component: () => import('../views/BookAppointment.vue'),
     meta: { requiresAuth: true, requiredRole: 'patient' } // Patient only
+  },
+  {
+    path: '/patient-history',
+    name: 'patientHistory',
+    component: () => import('../views/PatientHistory.vue'),
+    meta: { requiresAuth: true, requiredRole: 'patient' }
   },
   {
     path: '/doctor-dashboard',

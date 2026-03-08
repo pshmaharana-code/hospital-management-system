@@ -33,6 +33,12 @@ class Patient(db.Model):
     id = db.Column(db.Integer, primary_key = True)
     name = db.Column(db.String(100), nullable = False)
     contact = db.Column(db.String(100), nullable = False)
+    # --- NEW MEDICAL PROFILE FIELDS ---
+    age = db.Column(db.Integer, nullable = True)
+    gender = db.Column(db.String(20), nullable = True)
+    blood_group = db.Column(db.String(10), nullable = True)
+    address = db.Column(db.Text, nullable = True)
+    # ----------------------------------
     #Link to user model for login credentials
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable = False)
     user = db.relationship('User', backref=db.backref('patient', uselist = False))
