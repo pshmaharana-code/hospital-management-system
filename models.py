@@ -1,4 +1,4 @@
-from app import db
+from extension import db
 from flask_login import UserMixin
 
 class User(db.Model, UserMixin):
@@ -25,9 +25,28 @@ class Doctor(db.Model):
     contact = db.Column(db.String(100), nullable = True)
     experience = db.Column(db.Integer, nullable = True)
     qualification = db.Column(db.String(200), nullable = True)
+
+    # --- NEW: Variable Slot Duration (in minutes) ---
+    slot_duration = db.Column(db.Integer, default=30, nullable = False)
     #Link to user model for login credentials
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable = False)
     user = db.relationship('User', backref=db.backref('doctor', uselist = False))
+
+# --- NEW MODEL: The Exception Layer (Vacations/Days Off) ---
+class DoctorLeave(db.Model):
+    id = db.Column(db.Integer, primary_key = True)
+    date = db.Column(db.Date, nullable=False)
+    reason = db.Column(db.String(200), nullable=True)
+
+    # Link to the doctor
+    doctor_id = db.Column(db.Integer, db.ForeignKey('doctor.id'), nullable = False)
+    doctor = db.relationship('Doctor', backref=db.backref('leaves', cascade="all, delete-orphan"))
+
+    # A doctor can only have one leave entry per specific date
+    __table_args__ = (db.UniqueConstraint('doctor_id', 'date', name='_doctor_date_leave_uc'),)
+
+    def __repr__(self):
+        return f'<Leave {self.doctor.name} on {self.date}>'
 
 class Patient(db.Model):
     id = db.Column(db.Integer, primary_key = True)

@@ -1,3 +1,4 @@
+from extension import db
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt, verify_jwt_in_request
 from flask import Flask, render_template, request, redirect, url_for, flash, abort, session, jsonify
@@ -28,7 +29,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 app.config['SECRET_KEY'] = 'thisisasecretkey'
 
 #Initialize extention
-db = SQLAlchemy(app)
+db.init_app(app)
 bcrypt = Bcrypt(app)
 
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
@@ -238,51 +239,64 @@ def api_doctor_dashboard():
         "days_list": days_list
     }), 200
 
-@app.route('/doctor/update_schedule', methods = ['POST'])
-@login_required
-def update_schedule():
-    if current_user.role != 'doctor':
-        abort(403)
 
-    doctor = Doctor.query.filter_by(user_id = current_user.id).first()
+@app.route('/api/doctor/schedule', methods=['POST','OPTIONS'])
+def api_update_doctor_schedule():
+    if request.method == 'OPTIONS':
+        return jsonify({"msg": "CORS Preflight OK"}), 200
+    
+    verify_jwt_in_request()
+    claims = get_jwt()
+    if claims.get("role") != 'doctor':
+        return jsonify({"msg": "Unaluthorised access. Doctors only."}), 403
+    
+    current_user_id = int(get_jwt_identity())
+    doctor = Doctor.query.filter_by(user_id=current_user_id).first()
     if not doctor:
-        flash('Doctor profile not found.', 'danger')
-        return redirect(url_for('logout'))
+        return jsonify({"msg": "Doctor profile not found."}), 404
     
     try:
-        # We will loop 7 times (for day 0 to 6)
-        for day_index in range(7):
-            # Find the correct availability record for this doctor and day
+        schedule_data = request.get_json() # Expecting a list of 7 days
+
+        # Helper function to convert "09:00" text into Python time objects
+        def parse_time(time_str):
+            if not time_str or time_str == "":
+                return None
+            return datetime.strptime(time_str, '%H:%M').time()
+        
+        # 3. Loop through the 7 days Vue sends us
+        for day_data in schedule_data:
+            day_of_week = day_data.get('day_of_week')
+
+            # Check if an entry already exists for this day
             availability = DoctorAvailability.query.filter_by(
-                doctor_id=doctor.id,
-                day_of_week=day_index
+                doctor_id = doctor.id,
+                day_of_week = day_of_week
             ).first()
 
-            if availability:
-                # Get the 4 time strings from the form for this day
-                m_start_str = request.form.get(f"{day_index}_morning_start")
-                m_end_str = request.form.get(f"{day_index}_morning_end")
-                e_start_str = request.form.get(f"{day_index}_evening_start")
-                e_end_str = request.form.get(f"{day_index}_evening_end")
+            # If not, create a blank one
+            if not availability:
+                availability = DoctorAvailability(doctor_id=doctor.id, day_of_week=day_of_week)
+                db.session.add(availability)
 
-                def to_time(time_str):
-                    if time_str:
-                        return datetime.strptime(time_str, '%H:%M').time()
-                    return None
-                
-                availability.morning_start_time = to_time(m_start_str)
-                availability.morning_end_time = to_time(m_end_str)
-                availability.evening_start_time = to_time(e_start_str)
-                availability.evening_end_time = to_time(e_end_str)
+            # update the shift time
+            availability.morning_start_time = parse_time(day_data.get('morning_start_time'))
+            availability.morning_end_time = parse_time(day_data.get('morning_end_time'))
+            availability.evening_start_time = parse_time(day_data.get('evening_start_time'))
+            availability.evening_end_time = parse_time(day_data.get('evening_end_time'))
+
+            # save the whole week to the database
 
         db.session.commit()
-        flash('Your schedule has been updated successfully.', 'success')
-
+        return jsonify({"msg": "Weekly schedule successfully updated!"}), 200
+        
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         db.session.rollback()
-        flash(f'An error occurred while updating your schedule: {e}', 'danger')
+        return jsonify({"msg": "Failed to update schedule"}), 500
 
-    return redirect(url_for('doctor_dashboard'))
+
 
 @app.route('/doctor/mark_complete/<int:appointment_id>', methods = ['GET', 'POST'])
 @login_required
@@ -378,6 +392,92 @@ def api_patient_dashboard():
                 }), 200
 
 
+@app.route('/api/patient/doctor/<int:doctor_id>/slots', methods=['GET', 'OPTIONS'])
+def api_get_doctor_slots(doctor_id):
+    if request.method == 'OPTIONS':
+        return jsonify({"msg": "CORS Preflight OK"}), 200
+    
+    verify_jwt_in_request()
+
+    target_data_str = request.args.get('date')
+    if not target_data_str:
+        return jsonify({"msg": "Date parameter is required"}), 400
+    
+    try:
+        target_date = datetime.strptime(target_data_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({"msg": "Invalid date format."}), 400
+    
+    # FIX 1: Removed quotes around doctor_id
+    doctor = Doctor.query.get(doctor_id) 
+    if not doctor:
+        return jsonify({"msg": "Doctor not found"}), 404
+    
+    # === LAYER 1: THE EXCEPTION LAYER (Vacations/Leaves) ===
+    leave = DoctorLeave.query.filter_by(doctor_id=doctor_id, date=target_date).first()
+    if leave: # FIX 2: If leave EXISTS, return empty array. (You had 'if not leave')
+        return jsonify([]), 200
+
+    # === LAYER 2: THE MASTER ROSTER ===
+    day_of_week = target_date.weekday()
+    availability = DoctorAvailability.query.filter_by(
+        doctor_id=doctor_id,
+        day_of_week=day_of_week
+    ).first()
+
+    # If they don't have a schedule for this day, or it's turned off
+    if not availability:
+        return jsonify([]), 200
+    
+    # === LAYER 3: THE MATH ENGINE ===
+    slot_duration = timedelta(minutes=doctor.slot_duration)
+    generated_slot = []
+
+    def generate_shift_slot(start_time, end_time):
+        if not start_time or not end_time:
+            return
+            
+        # FIX 3: Use combine() instead of strptime() to merge a Date and a Time!
+        current_dt = datetime.combine(target_date, start_time)
+        end_dt = datetime.combine(target_date, end_time)
+
+        # keep adding slots until the next slot would push past quitting time
+        while current_dt + slot_duration <= end_dt:
+            generated_slot.append(current_dt.time().strftime('%H:%M'))
+            current_dt += slot_duration
+
+    # Slice up both the morning and evening shifts!
+    generate_shift_slot(availability.morning_start_time, availability.morning_end_time)
+    generate_shift_slot(availability.evening_start_time, availability.evening_end_time)
+
+    # === LAYER 4: THE FILTER (Remove booked appointments) ===
+    booked_appointment = Appointment.query.filter_by(
+        doctor_id = doctor_id,
+        date = target_date,
+        status = 'Booked'
+    ).all()
+
+    booked_times = [appt.time.strftime('%H:%M') for appt in booked_appointment]
+
+    available_slots = [slot for slot in generated_slot if slot not in booked_times]
+
+    return jsonify(available_slots), 200
+
+@app.route('/api/doctors', methods=['GET'])
+def api_get_all_doctor():
+    doctors = Doctor.query.all()
+    doc_list = []
+    for doc in doctors:
+        doc_list.append({
+            "id": doc.id,
+            "name": doc.name,
+            "department": doc.department.name if doc.department else "General",
+            "experience": doc.experience
+        })
+
+    return jsonify(doc_list), 200
+
+
 @app.route('/api/departments', methods=['GET'])
 @jwt_required()
 def api_get_departments():
@@ -423,142 +523,71 @@ def api_get_doctors_by_dept(department_id):
         print(f"Error fetching doctors: {e}")
         return jsonify({"msg": "Failed to load doctors"}), 500
     
-@app.route('/api/doctors/<int:doctor_id>/slots', methods=['GET'])
-@jwt_required()
-def api_get_doctor_slots(doctor_id):
-    try:
-        doctor = Doctor.query.get_or_404(doctor_id)
-        SLOT_DURATION = timedelta(minutes=30)
-
-        # 1. Get the doctor's weekly schedule
-        schedule_query = DoctorAvailability.query.filter_by(doctor_id=doctor.id).all()
-        schedule_dict = {s.day_of_week: s for s in schedule_query}
-
-        # 2. Get existing bookings to know what is taken
-        today = date.today()
-        existing_appointments = Appointment.query.filter(
-            Appointment.doctor_id == doctor.id,
-            Appointment.date >= today,
-            Appointment.status == 'Booked'
-        ).all()
-        
-        # Super fast lookup set
-        booked_slots = set((appt.date, appt.time) for appt in existing_appointments)
-
-        # 3. Generate the 7 days of slots
-        days_to_show = []
-        for i in range(7):
-            current_date = today + timedelta(days=i)
-            day_of_week = current_date.weekday()
-            default_schedule = schedule_dict.get(day_of_week)
-            
-            day_slots = []
-            if default_schedule:
-                # Calculate Morning Slots
-                if default_schedule.morning_start_time and default_schedule.morning_end_time:
-                    current_time = datetime.combine(current_date, default_schedule.morning_start_time)
-                    end_time = datetime.combine(current_date, default_schedule.morning_end_time)
-                    while current_time < end_time:
-                        slot_time_obj = current_time.time()
-                        status = 'Booked' if (current_date, slot_time_obj) in booked_slots else 'Available'
-                        day_slots.append({'time': slot_time_obj.strftime('%H:%M'), 'status': status})
-                        current_time += SLOT_DURATION
-                
-                # Calculate Evening Slots
-                if default_schedule.evening_start_time and default_schedule.evening_end_time:
-                    current_time = datetime.combine(current_date, default_schedule.evening_start_time)
-                    end_time = datetime.combine(current_date, default_schedule.evening_end_time)
-                    while current_time < end_time:
-                        slot_time_obj = current_time.time()
-                        status = 'Booked' if (current_date, slot_time_obj) in booked_slots else 'Available'
-                        day_slots.append({'time': slot_time_obj.strftime('%H:%M'), 'status': status})
-                        current_time += SLOT_DURATION
-            
-            # Add this day's calculated data to our massive list
-            days_to_show.append({
-                'date': current_date.strftime('%Y-%m-%d'),
-                'display_date': current_date.strftime('%b %d, %Y'), 
-                'day_name': current_date.strftime('%A'),            
-                'slots': day_slots
-            })
-
-        return jsonify(days_to_show), 200
-
-    except Exception as e:
-        import traceback
-        traceback.print_exc() # This will print the exact line error in your Flask terminal
-        return jsonify({"msg": "Failed to load time slots"}), 500
     
 
-@app.route('/api/patient/appointment/book', methods=['POST', 'OPTIONS'])
+@app.route('/api/patient/appointment', methods=['POST', 'OPTIONS'])
 def api_book_appointment():
-    # 1. THE PREFLIGHT CHECK (CORS)
+    # 1. CORS Preflight
     if request.method == "OPTIONS":
         return jsonify({"msg": "CORS Preflight OK"}), 200
-    
-    # THE BOUNCER
+
+    # 2. Security Check: Patients Only
     verify_jwt_in_request()
+    claims = get_jwt()
+    if claims.get("role") != 'patient':
+        return jsonify({"msg": "Unauthorized. Only patients can book appointments."}), 403
+
+    # Find the patient making the request
     current_user_id = int(get_jwt_identity())
+    patient = Patient.query.filter_by(user_id=current_user_id).first()
+    if not patient:
+        return jsonify({"msg": "Patient profile not found."}), 404
 
     try:
-        # Grab the data Vue just sent us
         data = request.get_json()
         doctor_id = data.get('doctor_id')
-        date_str = data.get('date') # Format: 'YYYY-MM-DD'
-        time_str = data.get('time') # Format: 'HH:MM'
-        
-        # Convert the string text into actual Python Date/Time objects
-        appt_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        appt_time = datetime.strptime(time_str, '%H:%M').time()
+        target_date_str = data.get('date')
+        target_time_str = data.get('time')
 
-        #Find the patient
-        patient = Patient.query.filter_by(user_id=current_user_id).first()
-        if not patient:
-            return jsonify({"msg": "Patient profile not found."}), 404
-        
-        # Check if ANY appointment exists for this doctor, on this date, at this time, that is 'Booked'
+        if not all([doctor_id, target_date_str, target_time_str]):
+            return jsonify({"msg": "Missing required booking details."}), 400
+
+        # Convert text strings into Python date and time objects
+        target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
+        target_time = datetime.strptime(target_time_str, '%H:%M').time()
+
+        # 3. The Double-Booking Safety Net
+        # Check if this exact slot was literally just taken a millisecond ago
         existing_booking = Appointment.query.filter_by(
             doctor_id=doctor_id,
-            date=appt_date,
-            time=appt_time,
+            date=target_date,
+            time=target_time,
             status='Booked'
         ).first()
 
         if existing_booking:
-            # If a booking is found, immediately reject the request!
             return jsonify({"msg": "Sorry, this slot was just booked by someone else!"}), 409
 
-        # create the new appointment
+        # 4. Success! Create and save the new Appointment
         new_appointment = Appointment(
             patient_id=patient.id,
             doctor_id=doctor_id,
-            date=appt_date,
-            time=appt_time,
+            date=target_date,
+            time=target_time,
             status='Booked'
         )
-        
         db.session.add(new_appointment)
         db.session.commit()
-        
+
         return jsonify({"msg": "Appointment successfully booked!"}), 201
 
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return jsonify({"msg": "Failed to book appointment"}), 500
+        db.session.rollback()
+        return jsonify({"msg": "An error occurred while booking."}), 500
+
     
-
-
-# @app.route('/patient/book_appointment')
-# @login_required
-# def book_appointment():
-#     if current_user.role != 'patient':
-#         abort(403)
-
-#     #get all the department
-#     departments = Department.query.all()
-
-#     return render_template('select_department.html', departments=departments)
 
 
 @app.route('/api/patient/appointment/cancel/<int:appointment_id>', methods=['POST', 'OPTIONS'])
@@ -589,23 +618,6 @@ def api_cancel_appointment(appointment_id):
     
     return jsonify({"msg": "Appointment successfully cancelled."}), 200
 
-# @app.route('/patient/select_doctor/<int:department_id>')
-# @login_required
-# def select_doctor(department_id):
-#     if current_user.role != 'patient':
-#         abort(403)
-
-#     #find the department the user clicked on or return 404 
-#     department = Department.query.get_or_404(department_id)
-
-#     #find all the doctor who belongs to this department and have a 'active' status not 'blacklisted'
-
-#     doctors = Doctor.query.join(User).filter(
-#         Doctor.department_id == department_id,
-#         User.status == 'active'
-#     ).all()
-
-#     return render_template('select_doctor.html', department=department, doctors=doctors)
 
 @app.route('/patient/doctor_profile/<int:doctor_id>')
 @login_required
@@ -618,27 +630,6 @@ def doctor_profile(doctor_id):
     
     # Render a new template, passing the doctor's info
     return render_template('doctor_profile.html', doctor=doctor)
-
-
-
-# @app.route('/patient/confirm_booking/<int:doctor_id>/<string:date>/<string:time>')
-# @login_required
-# def confirm_booking(doctor_id, date, time):
-#     if current_user.role != 'patient':
-#         abort(403)
-        
-#     doctor = Doctor.query.get_or_404(doctor_id)
-    
-#     # Convert the date and time strings back into objects for display
-#     try:
-#         booking_date = datetime.strptime(date, '%Y-%m-%d').date()
-#         booking_time = datetime.strptime(time, '%H:%M').time()
-#     except ValueError:
-#         flash('Invalid booking slot.', 'danger')
-#         return redirect(url_for('patient_dashboard'))
-    
-#     return render_template('confirm_booking.html', doctor=doctor, booking_date=booking_date, booking_time=booking_time)
-
 
     
 @app.route('/api/patient/history', methods=['GET', 'OPTIONS'])
@@ -1098,7 +1089,7 @@ def admin_chart():
     return send_file(img, mimetype='image/png')
 
 
-from models import User, Doctor, Patient, Appointment, Treatment, Department, DoctorAvailability
+from models import User, Doctor, Patient, Appointment, Treatment, Department, DoctorAvailability, DoctorLeave
 
 if __name__ == '__main__':
     app.run(debug=True)

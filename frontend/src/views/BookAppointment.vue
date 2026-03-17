@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted} from 'vue'
+import { ref, onMounted, computed} from 'vue'
 import axios from 'axios';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router'
@@ -11,235 +11,268 @@ const router = useRouter()
 // This tracks which step of booking step we are on (1, 2 or 3)
 const currentStep = ref(1)
 
-// -----DATA STORAGE-------
+const allDoctors = ref([])
 const departments = ref([])
-// We will use these later for step 2 and 3!
-const selectedDepartment = ref(null)
-const doctors = ref([])
+const availableSlots = ref([])
+const availableDates = ref([])
+
+// ------USER SELECTION-----
+const selectedDepartment = ref('')
 const selectedDoctor = ref(null)
-const availableDays = ref([])
+const selectedDate = ref(null)
+const selectedSlot = ref(null)
 
-// ----API Calls----
+const isLoading = ref(false)
+const errorMessage = ref('')
+const successMessage = ref('')
 
-const fetchDepartments = async () => {
-    try {
-        const response = await axios.get('http://127.0.0.1:5000/api/departments', {
-            headers: {Authorization: `Bearer ${authStore.token}`}
-        })
-        departments.value = response.data
+// --- STEP 1 & 2: FETCH DOCTORS & EXTRACT DEPARTMENTS ---
+const fetchDoctorsAndDepartments = async () => {
+    try{
+        const response = await axios.get('http://127.0.0.1:5000/api/doctors')
+        allDoctors.value = response.data
+
+        // Extract unique department name from the doctors list
+        const rawDepartments = allDoctors.value.map(doc => doc.department)
+        departments.value = [...new Set(rawDepartments)]
     } catch (error) {
-        console.error("Failed to fetch departments:", error)
-        alert("Could not load departments")
+        console.error("Failed to load data:", error)
+        errorMessage.value = "Could not load hospital departments."
     }
 }
 
-// When a user clicks a department card, we save their choice and move to Step 2!
-const selectDepartment = (dept) => {
+// User click a department (Move to step 2)
+const chooseDepartment = (dept) => {
     selectedDepartment.value = dept
     currentStep.value = 2
-    fetchDoctors(dept.id)  // Grab the doctors for this specific department
 }
 
-const fetchDoctors = async (deptId) => {
-    try {
-        const response = await axios.get(`http://127.0.0.1:5000/api/departments/${deptId}/doctors`, {
-            headers: {Authorization: `Bearer ${authStore.token}`}
-        })
-        doctors.value = response.data
-    } catch (error) {
-        console.error("Failed to fetch doctors:", error)
-        alert("Could not load doctors.")
-    }
-}
+// Computed property to only show doctors in the chosen department
+const filteredDoctors = computed(() => {
+    return allDoctors.value.filter(doc => doc.department === selectedDepartment.value)
+})
 
-const selectDoctor = (doc) => {
+// User clicks a doctor (Move to step 3)
+const chooseDoctor = (doc) => {
     selectedDoctor.value = doc
+    generateCalender()
     currentStep.value = 3
-    fetchSlots(doc.id)
 }
 
-const fetchSlots = async (docId) => {
+// -----Step 3 generate 30-Day Calender-----
+const generateCalender = () => {
+    const dates = []
+    const today = new Date()
+
+    for (let i =0; i < 30; i++) {
+        const nextDay = new Date(today)
+        nextDay.setDate(today.getDate() + i)
+
+        const dateString = nextDay.toISOString().split('T')[0]
+        const displaySting = nextDay.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+
+        dates.push({date: dateString, display: displaySting})
+    }
+    availableDates.value = dates
+}
+
+
+// User clicks a date (Moves to Step 4)
+const chooseDate = async (dateObj) => {
+    selectedDate.value = dateObj
+    isLoading.value = true
+    errorMessage.value = ''
+    availableSlots.value = []
+    
     try {
-        const response = await axios.get(`http://127.0.0.1:5000/api/doctors/${docId}/slots`, {
-            headers: {Authorization: `Bearer ${authStore.token}`}
+        const response = await axios.get(`http://127.0.0.1:5000/api/patient/doctor/${selectedDoctor.value.id}/slots?date=${dateObj.date}`, {
+            headers: { Authorization: `Bearer ${authStore.token}` }
         })
-        availableDays.value = response.data
+        availableSlots.value = response.data
+        currentStep.value = 4
     } catch (error) {
         console.error("Failed to fetch slots:", error)
-        alert("Could not load time slots.")
+        errorMessage.value = "Could not load availability for this date."
+    } finally {
+        isLoading.value = false
     }
 }
 
-// This will hold our final POST request to save the appointment!
-const confirmBooking = async (date,time) => {
-    // ask the user if they are abolutely sure or not
-    if (!confirm(`Confirm booking with Dr. ${selectedDoctor.value.name} on ${date} at ${time}?`)) {
-    return; // If they click cancel, stop here.
-  }
-  try {
-    // 2. Send the data to our new Flask route
-    await axios.post('http://127.0.0.1:5000/api/patient/appointment/book', {
-        doctor_id: selectedDoctor.value.id,
-        date: date,
-        time: time
-    }, {
-        headers: {Authorization: `Bearer ${authStore.token}`}
-    });
-    // 3. Success! Alert them and teleport back to the Dashboard
-    alert("Appointment booked successfully")
-    router.push('/patient-dashboard')
-  } catch (error) {
-    console.error("Booking failed:", error);
-    alert("Failed to book the appointment. Someone else might have just grabbed that slot!");
-  }
+// User clicks a time slot (Moves to Step 5)
+const chooseSlot = (time) => {
+    selectedSlot.value = time
+    currentStep.value = 5
 }
 
+// --- STEP 5: CONFIRM AND BOOK ---
+const confirmBooking = async () => {
+    isLoading.value = true
+    errorMessage.value = ''
+    
+    const payload = {
+        doctor_id: selectedDoctor.value.id,
+        date: selectedDate.value.date,
+        time: selectedSlot.value
+    }
+
+    try {
+        await axios.post('http://127.0.0.1:5000/api/patient/appointment', payload, {
+            headers: { Authorization: `Bearer ${authStore.token}` }
+        })
+        successMessage.value = "Appointment Successfully Booked!"
+        setTimeout(() => {
+            router.push('/patient-dashboard')
+        }, 3000)
+    } catch (error) {
+        console.error("Booking failed:", error)
+        errorMessage.value = "Failed to book appointment. The slot might have just been taken."
+    } finally {
+        isLoading.value = false
+    }
+}
+
+const goBack = () => {
+    if (currentStep.value > 1) {
+        currentStep.value--
+        errorMessage.value = ''
+    } else {
+        router.push('/patient-dashboard')
+    }
+}
 
 onMounted(() => {
-    fetchDepartments()
+    fetchDoctorsAndDepartments()
 })
 </script>
 
 <template>
     <div class="booking-container">
-        <h2>Book an Appointment</h2>
+        
+        <div class="header">
+            <h2>Book an Appointment</h2>
+            <button @click="goBack" class="btn-back">&larr; Back</button>
+        </div>
 
         <div class="progress-bar">
-            <span :class="{ active: currentStep >= 1}">1. Department</span> &rarr;
-            <span :class="{ active: currentStep >= 2}">2. Doctor</span> &rarr;
-            <span :class="{ active: currentStep >= 3}">3. Time</span>
+            <div :class="['step', { active: currentStep >= 1 }]">1. Dept</div>
+            <div :class="['step', { active: currentStep >= 2 }]">2. Doctor</div>
+            <div :class="['step', { active: currentStep >= 3 }]">3. Date</div>
+            <div :class="['step', { active: currentStep >= 4 }]">4. Time</div>
+            <div :class="['step', { active: currentStep >= 5 }]">5. Confirm</div>
         </div>
 
-        <div v-if="currentStep === 1" class="wizard-step">
-            <h3>Select Department</h3>
+        <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
+        <div v-if="successMessage" class="success-message">
+            <h3>🎉 {{ successMessage }}</h3>
+            <p>Redirecting you to your dashboard...</p>
+        </div>
 
+        <div v-if="currentStep === 1 && !successMessage" class="step-content">
+            <h3>Choose a Department</h3>
             <div class="grid-container">
-                <div
-                    v-for="dept  in departments"
-                    :key="dept.id"
-                    class="card"
-                    @click="selectDepartment(dept)"
-                >
-                    <h4>{{ dept.name }}</h4>
-                    <p v-if="dept.description">{{ dept.description }}</p>
+                <div v-for="dept in departments" :key="dept" class="card dept-card" @click="chooseDepartment(dept)">
+                    <h4>{{ dept }}</h4>
+                    <button class="btn-select">View Doctors</button>
+                </div>
+            </div>
+            <p v-if="departments.length === 0">No departments currently available.</p>
+        </div>
+
+        <div v-if="currentStep === 2 && !successMessage" class="step-content">
+            <h3>Doctors in {{ selectedDepartment }}</h3>
+            <div class="grid-container">
+                <div v-for="doc in filteredDoctors" :key="doc.id" class="card doc-card" @click="chooseDoctor(doc)">
+                    <h4>{{ doc.name }}</h4>
+                    <p class="experience">{{ doc.experience ? doc.experience + ' years exp.' : 'Specialist' }}</p>
+                    <button class="btn-select">Select</button>
                 </div>
             </div>
         </div>
 
-        <div v-if="currentStep === 2" class="wizard-step">
-            <h3>Select a Doctor ({{ selectedDepartment?.name }})</h3>
+        <div v-if="currentStep === 3 && !successMessage" class="step-content">
+            <h3>Select a Date for {{ selectedDoctor.name }}</h3>
+            <div class="calendar-grid">
+                <div v-for="date in availableDates" :key="date.date" 
+                     class="card date-card" 
+                     @click="chooseDate(date)">
+                    {{ date.display }}
+                </div>
+            </div>
+        </div>
+
+        <div v-if="currentStep === 4 && !successMessage" class="step-content">
+            <h3>Available Slots on {{ selectedDate.display }}</h3>
+            <div v-if="isLoading" class="loading">Searching master schedule...</div>
             
-            <button @click="currentStep = 1" class="back-btn">&larr;Back to Departments</button>
-
-            <div v-if="doctors.length === 0" class="empty-state" style="margin-top: 1rem;">
-                <p>There are currently no active doctors available in this department.</p>
-            </div>
-
-            <div v-else class="grid-container">
-                <div
-                    v-for="doc in doctors"
-                    :key="doc.id"
-                    class="card"
-                    @click="selectDoctor(doc)"
-                >
-                    <h4>Dr. {{ doc.name }}</h4>
-                    <p>{{ doc.qualification }}</p>
-                    <p v-if="doc.experience">Experience: {{ doc.experience }}</p>
+            <div v-else-if="availableSlots.length > 0" class="slot-grid">
+                <div v-for="time in availableSlots" :key="time" 
+                     class="card slot-card" 
+                     @click="chooseSlot(time)">
+                    {{ time }}
                 </div>
+            </div>
+            
+            <div v-else class="empty-state">
+                <p>No available slots on this date. The doctor may be off or fully booked.</p>
             </div>
         </div>
 
-        <div v-if="currentStep === 3" class="wizard-step">
-            <h3>Select a time for Dr. {{ selectedDoctor?.name }}</h3>
-            <button @click="currentStep = 2" class="back-btn">&larr; Back to Doctors</button>
-
-            <div class="calander-container">
-                <div v-for="day in availableDays" :key="day.date" class="day-column">
-                    <h4 class="day-name">{{ day.day_name }}</h4>
-                    <p class="day-date">{{ day.display_date }}</p>
-
-                    <div v-if="availableDays.length === 0" class="no-slot">
-                        No slots available
-                    </div>
-
-                    <div v-else class="slot-list">
-                        <button
-                            v-for="slot in day.slots"
-                            :key="slot.time"
-                            :class="['slot-btn', slot.status === 'Booked' ? 'booked' : 'available']"
-                            :disabled="slot.status === 'Booked'"
-                            @click="confirmBooking(day.date, slot.time)"
-                        >
-                            {{ slot.time }}
-                        </button>
-                    </div>
-                </div>
+        <div v-if="currentStep === 5 && !successMessage" class="step-content confirmation">
+            <h3>Confirm Your Appointment</h3>
+            <div class="summary-box">
+                <p><strong>Department:</strong> {{ selectedDepartment }}</p>
+                <p><strong>Doctor:</strong> {{ selectedDoctor.name }}</p>
+                <p><strong>Date:</strong> {{ selectedDate.display }}</p>
+                <p><strong>Time:</strong> {{ selectedSlot }}</p>
             </div>
+            <button @click="confirmBooking" class="btn-primary" :disabled="isLoading">
+                {{ isLoading ? 'Booking...' : 'Confirm & Book Appointment' }}
+            </button>
         </div>
+
     </div>
 </template>
 
-
 <style scoped>
-.booking-container { max-width: 800px; margin: 2rem auto; padding: 1rem; }
-.progress-bar { display: flex; justify-content: space-between; margin-bottom: 2rem; color: #888; font-weight: bold; }
-.progress-bar .active { color: #2c3e50; border-bottom: 2px solid #3498db; }
-.wizard-step { background: #f9f9f9; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-.grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem; }
+/* Keeping the exact same elegant styling from before, just slightly optimized for the 5th step */
+.booking-container { max-width: 900px; margin: 2rem auto; padding: 2rem; background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); font-family: Arial, sans-serif; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 2px solid #f1f2f6; padding-bottom: 1rem; }
+.header h2 { margin: 0; color: #2c3e50; }
+.btn-back { background: none; border: none; color: #7f8c8d; cursor: pointer; font-size: 1rem; font-weight: bold; }
+.btn-back:hover { color: #34495e; }
 
-/* The clickable cards */
-.card {
-  background: white; border: 1px solid #ddd; padding: 1.5rem;
-  border-radius: 8px; cursor: pointer; transition: all 0.2s; text-align: center;
-}
-.card:hover { transform: translateY(-3px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-color: #3498db; }
-.card h4 { margin: 0 0 0.5rem 0; color: #2c3e50; }
-.card p { margin: 0; font-size: 0.9rem; color: #666; }
-.back-btn { margin-top: 1rem; padding: 0.5rem 1rem; cursor: pointer; }
+/* Progress Bar */
+.progress-bar { display: flex; justify-content: space-between; gap: 5px; margin-bottom: 3rem; background: #f1f2f6; border-radius: 30px; padding: 0.5rem; overflow-x: auto;}
+.step { flex: 1; text-align: center; padding: 0.5rem; border-radius: 20px; color: #a4b0be; font-weight: bold; font-size: 0.85rem; transition: 0.3s; white-space: nowrap; }
+.step.active { background: #3498db; color: white; }
 
-/* --- Calendar & Slots CSS --- */
-.calendar-container { 
-  display: flex; 
-  gap: 1rem; 
-  margin-top: 1.5rem; 
-  overflow-x: auto; /* Lets the user scroll horizontally through the 7 days */
-  padding-bottom: 1rem; 
-}
-.day-column { 
-  min-width: 150px; 
-  background: white; 
-  padding: 1rem; 
-  border-radius: 8px; 
-  border: 1px solid #ddd; 
-  text-align: center; 
-}
-.day-name { margin: 0; color: #2c3e50; font-size: 1.1rem; }
-.day-date { margin: 0 0 1rem 0; font-size: 0.85rem; color: #666; }
-.slots-list { display: flex; flex-direction: column; gap: 0.5rem; }
+/* Grids & Cards */
+.step-content h3 { color: #2c3e50; margin-bottom: 1.5rem; text-align: center; }
+.grid-container, .calendar-grid, .slot-grid { display: grid; gap: 1rem; }
+.grid-container { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.calendar-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+.slot-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
 
-/* The Slot Buttons */
-.slot-btn { 
-  padding: 0.5rem; 
-  border: none; 
-  border-radius: 4px; 
-  font-weight: bold; 
-  cursor: pointer; 
-  transition: 0.2s; 
-}
-.slot-btn.available { 
-  background-color: #e8f8ec; 
-  color: #27ae60; 
-  border: 1px solid #bce8c5; 
-}
-.slot-btn.available:hover { 
-  background-color: #27ae60; 
-  color: white; 
-}
-.slot-btn.booked { 
-  background-color: #fce4e4; 
-  color: #c0392b; 
-  cursor: not-allowed; 
-  opacity: 0.6; 
-}
-.no-slots { font-size: 0.9rem; color: #999; font-style: italic; }
+.card { padding: 1.5rem; border: 2px solid #f1f2f6; border-radius: 8px; text-align: center; cursor: pointer; transition: 0.2s; background: white; }
+.card:hover { border-color: #3498db; transform: translateY(-3px); box-shadow: 0 4px 10px rgba(52, 152, 219, 0.15); }
+
+.doc-card h4, .dept-card h4 { margin: 0 0 0.5rem 0; color: #2c3e50; }
+.experience { color: #7f8c8d; font-size: 0.9rem; margin-bottom: 1rem; }
+.btn-select { background: #f1f2f6; border: none; padding: 0.5rem 1rem; border-radius: 4px; font-weight: bold; color: #34495e; cursor: pointer; width: 100%; transition: 0.2s; }
+.card:hover .btn-select { background: #3498db; color: white; }
+
+.date-card, .slot-card { font-weight: bold; color: #2c3e50; padding: 1rem; }
+.date-card:hover, .slot-card:hover { background: #3498db; color: white; }
+
+/* Confirmation */
+.summary-box { background: #f8f9fa; border: 1px solid #e9ecef; border-left: 5px solid #2ecc71; padding: 2rem; border-radius: 8px; margin-bottom: 2rem; font-size: 1.1rem; }
+.summary-box p { margin: 0.5rem 0; }
+.btn-primary { background: #2ecc71; color: white; border: none; padding: 1rem 2rem; font-size: 1.1rem; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; transition: 0.2s; }
+.btn-primary:hover:not(:disabled) { background: #27ae60; }
+.btn-primary:disabled { background: #95a5a6; cursor: not-allowed; }
+
+/* Messages */
+.error-message { background: #ffeaa7; color: #d63031; padding: 1rem; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 1rem; }
+.success-message { text-align: center; padding: 3rem; background: #e8f8f5; color: #27ae60; border-radius: 12px; margin-top: 2rem; }
+.empty-state, .loading { text-align: center; padding: 3rem; color: #7f8c8d; font-style: italic; background: #f8f9fa; border-radius: 8px; }
 </style>
