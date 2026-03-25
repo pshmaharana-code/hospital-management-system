@@ -197,6 +197,7 @@ def api_doctor_dashboard():
     for appt in upcoming_appointments:
         appointments_list.append({
             "id": appt.id,
+            "patient_id": appt.patient.id,
             "date": appt.date.strftime('%Y-%m-%d'),
             "time": appt.time.strftime('%H:%M'),
             "patient_name": appt.patient.name,
@@ -298,56 +299,100 @@ def api_update_doctor_schedule():
 
 
 
-@app.route('/doctor/mark_complete/<int:appointment_id>', methods = ['GET', 'POST'])
-@login_required
-def mark_complete(appointment_id):
-    if current_user.role != 'doctor':
-        abort(403)
+@app.route('/api/doctor/appointment/<int:appointment_id>/consult', methods=['POST', 'OPTIONS'])
+def api_submit_consultation(appointment_id):
+    # 1. CORS Preflight
+    if request.method == "OPTIONS":
+        return jsonify({"msg": "CORS Preflight OK"}), 200
 
+    # 2. Security Check: Doctors Only
+    verify_jwt_in_request()
+    claims = get_jwt()
+    if claims.get("role") != 'doctor':
+        return jsonify({"msg": "Unauthorized. Doctors only."}), 403
+
+    current_user_id = int(get_jwt_identity())
+    doctor = Doctor.query.filter_by(user_id=current_user_id).first()
+
+    # Find the specific appointment
     appointment = Appointment.query.get_or_404(appointment_id)
 
-    if appointment.doctor.user_id != current_user.id:
-        abort(403)
+    # 3. Double-Check Permissions
+    if appointment.doctor_id != doctor.id:
+        return jsonify({"msg": "Permission denied. This is not your patient."}), 403
 
-    if request.method == 'POST':
-        diagnosis = request.form.get('diagnosis')
-        prescription = request.form.get('prescription')
-        notes = request.form.get('notes')
+    try:
+        # Grab the form data Vue sends us
+        data = request.get_json()
+        diagnosis = data.get('diagnosis')
+        prescription = data.get('prescription')
+        notes = data.get('notes')
 
-        new_treatment = Treatment(diagnosis=diagnosis, prescription=prescription, notes=notes, appointment_id=appointment.id)
+        if not diagnosis or not prescription:
+            return jsonify({"msg": "Diagnosis and Prescription are required."}), 400
 
+        # 4. Create the Treatment Record
+        new_treatment = Treatment(
+            diagnosis=diagnosis,
+            prescription=prescription,
+            notes=notes,
+            appointment_id=appointment.id
+        )
+        db.session.add(new_treatment)
+
+        # 5. Flip the Status!
         appointment.status = 'Completed'
 
-        db.session.add(new_treatment)
+        # Commit both changes at the exact same time
         db.session.commit()
+        return jsonify({"msg": "Consultation complete! Patient record updated."}), 200
 
-        flash('Appointment marked as completed and treatment details saved.','success')
-        return redirect(url_for('doctor_dashboard'))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        db.session.rollback()
+        return jsonify({"msg": "Failed to submit consultation."}), 500
+
+@app.route('/api/doctor/patient/<int:patient_id>/history', methods=['GET', 'OPTIONS'])
+def api_doctor_patient_history(patient_id):
+    if request.method == 'OPTIONS':
+        return jsonify({"msg": "CORS Preflight OK"}), 200
     
-    return render_template('mark_complete.html', appointment=appointment)
-
-@app.route('/doctor/patient_history/<int:patient_id>')
-@login_required
-def doctor_patient_history(patient_id):
-    if current_user.role != 'doctor':
-        abort(403)
-
+    verify_jwt_in_request()
+    claims = get_jwt()
+    if claims.get("role") != 'doctor':
+        return jsonify({"msg": "Unauthorized."}), 403
+    
+    current_user_id = int(get_jwt_identity())
+    doctor = Doctor.query.filter_by(user_id=current_user_id).first()
     patient = Patient.query.get_or_404(patient_id)
 
-    # Security check: Ensure the doctor is actually linked to this patient
-    # via at least one appointment (even if not completed)
-    link_exist = Appointment.query.filter_by(doctor_id=current_user.doctor.id, patient_id=patient.id).first()
-
-    if not link_exist and current_user.role != 'admin':
-        flash('You do not have permission to view this patient\'s history.', 'danger')
-        return redirect(url_for('doctor_dashboard'))
+    link_exist = Appointment.query.filter_by(doctor_id=doctor.id, patient_id=patient.id).first()
+    if not link_exist:
+        return jsonify({"msg": "Permission denied. You are not assigned to this patient."}), 403
     
     completed_appointments = Appointment.query.filter_by(
         patient_id=patient.id,
         status='Completed'
     ).order_by(Appointment.date.desc(), Appointment.time.desc()).all()
 
-    return render_template('doctor_patient_history.html', patient=patient, appointments=completed_appointments)
+    history_list = []
+    for appt in completed_appointments:
+        history_list.append({
+            "date": appt.date.strftime('%b %d, %Y'),
+            "consulting_doctor": appt.doctor.name,
+            "diagnosis": appt.treatment.diagnosis if appt.treatment else "Pending",
+            "prescription": appt.treatment.prescription if appt.treatment else "Pending",
+            "notes": appt.treatment.notes if appt.treatment else "N/A"
+        })
+
+    return jsonify({
+        "patient_name": patient.name,
+        "patient_age": patient.age or "N/A",
+        "patient_gender": patient.gender or "N/A",
+        "blood_group": patient.blood_group or "N/A",
+        "history": history_list
+    }), 200
 
 
 @app.route('/api/patient/dashboard', methods=['GET'])
@@ -388,7 +433,7 @@ def api_patient_dashboard():
 
     # send the clean data back to the Vue frontend
     return jsonify({"patient_name": patient.name,
-                    "upcomming_appointments": appointments_list
+                    "upcoming_appointments": appointments_list
                 }), 200
 
 
