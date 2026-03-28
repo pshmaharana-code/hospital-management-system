@@ -296,6 +296,51 @@ def api_update_doctor_schedule():
         traceback.print_exc()
         db.session.rollback()
         return jsonify({"msg": "Failed to update schedule"}), 500
+    
+@app.route('/api/doctor/leaves', methods=['GET', 'POST', 'OPTIONS'])
+def api_doctor_leaves():
+    if request.method == 'OPTIONS':
+        return jsonify({"msg": "CORS Preflight OK"}), 200
+    
+    verify_jwt_in_request()
+    claims = get_jwt()
+    if claims.get('role') != 'doctor':
+        return jsonify({"msg": "Unauthorized. Doctors only"}), 403
+    
+    current_user_id = int(get_jwt_identity())
+    doctor = Doctor.query.filter_by(user_id=current_user_id).first()
+
+    # GET: fetch all the upcoming leaves
+    if request.method == 'GET':
+        leaves = DoctorLeave.query.filter_by(doctor_id=doctor.id).order_by(DoctorLeave.date).all()
+        leave_list = [{"id": l.id, "date": l.date.strftime('%Y-%m-%d')} for l in leaves]
+        return jsonify(leave_list), 200
+    
+    # POST : add a new leave date
+    if request.method == 'POST':
+        data = request.get_json()
+        leaves_date_str = data.get('date')
+
+        if not leaves_date_str:
+            return jsonify({"msg": "Date is required."}), 400
+        
+        try:
+            leave_date = datetime.strptime(leaves_date_str, '%Y-%m-%d').date()
+
+            # Prevent duplicate leave entry for the same day.
+            existing_leave = DoctorLeave.query.filter_by(doctor_id=doctor.id, date=leave_date).first()
+            if existing_leave:
+                return jsonify({"msg": "You already have timeoff schedule for this date."}), 400
+            
+            new_leave = DoctorLeave(doctor_id=doctor.id, date=leave_date)
+            db.session.add(new_leave)
+            db.session.commit()
+
+            return jsonify({"msg": "Time off scheduled successfully"}), 201
+        
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"msg": "Failed to schedule time off."}), 500
 
 
 
@@ -635,33 +680,39 @@ def api_book_appointment():
     
 
 
-@app.route('/api/patient/appointment/cancel/<int:appointment_id>', methods=['POST', 'OPTIONS'])
-def api_cancel_appointment(appointment_id):
-    # 1. THE PREFLIGHT CHECK: Let the browser's invisible OPTIONS request pass!
+@app.route('/api/patient/appointment/<int:appointment_id>/cancel', methods=['POST', 'OPTIONS'])
+def api_patient_cancel_appointment(appointment_id):
+    # 1. Handle the CORS Preflight request so the browser doesn't panic
     if request.method == "OPTIONS":
         return jsonify({"msg": "CORS Preflight OK"}), 200
 
-    # 2. THE BOUNCER: Now we manually check the VIP badge for the real POST request
-    verify_jwt_in_request() 
-    current_user_id = int(get_jwt_identity())
-    
-    # 3. Find the patient profile
-    patient = Patient.query.filter_by(user_id=current_user_id).first()
-    if not patient:
-        return jsonify({"msg": "Patient profile not found."}), 404
+    # 2. Security Check: Ensure the user is logged in as a Patient
+    verify_jwt_in_request()
+    claims = get_jwt()
+    if claims.get("role") != 'patient':
+        return jsonify({"msg": "Unauthorized. Patients only."}), 403
 
-    # 4. Find the appointment
+    current_user_id = int(get_jwt_identity())
+    patient = Patient.query.filter_by(user_id=current_user_id).first()
+
+    # 3. Find the specific appointment
     appointment = Appointment.query.get_or_404(appointment_id)
 
-    # 5. Security Check: Does this appointment belong to THIS patient?
+    # 4. Strict Permissions Check: Ensure this patient owns this appointment
     if appointment.patient_id != patient.id:
-        return jsonify({"msg": "You do not have permission to cancel this appointment."}), 403 
-        
-    # 6. Cancel it and save!
-    appointment.status = 'Cancelled'
-    db.session.commit()
-    
-    return jsonify({"msg": "Appointment successfully cancelled."}), 200
+        return jsonify({"msg": "Permission denied. You cannot cancel someone else's appointment."}), 403
+
+    # 5. Execute the Cancellation
+    try:
+        appointment.status = 'Cancelled'
+        db.session.commit()
+        return jsonify({"msg": "Appointment cancelled successfully."}), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        db.session.rollback()
+        return jsonify({"msg": "Failed to cancel appointment."}), 500
 
 
 @app.route('/patient/doctor_profile/<int:doctor_id>')

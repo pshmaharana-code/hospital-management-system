@@ -64,14 +64,19 @@ const generateCalender = () => {
     const dates = []
     const today = new Date()
 
-    for (let i =0; i < 30; i++) {
+    for (let i = 0; i < 30; i++) {
         const nextDay = new Date(today)
         nextDay.setDate(today.getDate() + i)
 
-        const dateString = nextDay.toISOString().split('T')[0]
-        const displaySting = nextDay.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+        // Force exact local YYYY-MM-DD (No UTC shifting!)
+        const year = nextDay.getFullYear()
+        const month = String(nextDay.getMonth() + 1).padStart(2, '0')
+        const day = String(nextDay.getDate()).padStart(2, '0')
+        const dateString = `${year}-${month}-${day}`
 
-        dates.push({date: dateString, display: displaySting})
+        const displayString = nextDay.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+
+        dates.push({date: dateString, display: displayString})
     }
     availableDates.value = dates
 }

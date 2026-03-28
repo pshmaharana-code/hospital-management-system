@@ -51,6 +51,29 @@ const goToBooking = () => {
     router.push('/book-appointment')
 }
 
+// Cancel an appointment
+const cancelAppointment = async (appointmentId) => {
+    if (!confirm("Are you sure you want to cancel this appointment?")) return;
+    
+    try {
+        // NOTE: Verify this URL matches your existing Flask backend route for cancelling!
+        await axios.post(`http://127.0.0.1:5000/api/patient/appointment/${appointmentId}/cancel`, {}, {
+            headers: { Authorization: `Bearer ${authStore.token}` }
+        })
+        
+        // Refresh the dashboard to remove it from the list
+        fetchDashboard()
+        
+        // If they have the history tab open, refresh that too so it shows as "Cancelled"
+        if (activeTab.value === 'history') {
+            fetchHistory()
+        }
+    } catch (error) {
+        console.error("Failed to cancel appointment:", error)
+        alert("Failed to cancel appointment. Please try again.")
+    }
+}
+
 const handleLogout = () => {
     authStore.logout()
     router.push('/login')
@@ -178,6 +201,7 @@ onMounted(() => {
                                 <th>Time</th>
                                 <th>Doctor</th>
                                 <th>Department</th>
+                                <th>Action</th> <!-- Added back -->
                             </tr>
                         </thead>
                         <tbody>
@@ -186,6 +210,10 @@ onMounted(() => {
                                 <td>{{ appt.time }}</td>
                                 <td>Dr. {{ appt.doctor_name }}</td>
                                 <td>{{ appt.department }}</td>
+                                <td>
+                                    <!-- The missing button! -->
+                                    <button @click="cancelAppointment(appt.id)" class="btn-cancel-sm">Cancel</button>
+                                </td>
                             </tr>
                         </tbody>
                     </table>
@@ -272,6 +300,23 @@ onMounted(() => {
 .record-footer { background: #fdfdfd; padding: 1rem 1.5rem; border-top: 1px solid #eee; text-align: right; }
 .btn-download { background: #fff; border: 2px solid #3498db; color: #3498db; padding: 0.5rem 1rem; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
 .btn-download:hover { background: #3498db; color: white; }
+
+.btn-cancel-sm {
+    background-color: #ffeaa7; /* Soft yellow/orange warning color */
+    color: #d35400;
+    padding: 0.4rem 0.8rem;
+    border: 1px solid #e67e22;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: bold;
+    transition: 0.2s;
+}
+.btn-cancel-sm:hover {
+    background-color: #e74c3c;
+    color: white;
+    border-color: #e74c3c;
+}
 
 /* General Buttons */
 .btn-primary { background-color: #3498db; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }

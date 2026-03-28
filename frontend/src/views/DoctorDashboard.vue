@@ -110,6 +110,42 @@ const saveSchedule = async () => {
     }
 }
 
+// ---LEAVE MANAGEMENT-----
+
+const leaves = ref([])
+const newLeaveDate =  ref('')
+const isSubmitingLeave = ref(false)
+
+const fetchLeaves = async () => {
+    try {
+        const response = await axios.get('http://127.0.0.1:5000/api/doctor/leaves', {
+            headers: { Authorization: `Bearer ${authStore.token}`}
+        })
+        leaves.value = response.data
+    } catch (error) {
+        console.error("Failed to fetch leaves", error)
+    }
+}
+
+const submitLeave = async () => {
+    if(!newLeaveDate.value) return;
+    isSubmitingLeave.value = true;
+
+    try {
+        const response = await axios.post('http://127.0.0.1:5000/api/doctor/leaves', {date: newLeaveDate.value}, {
+            headers: { Authorization: `Bearer ${authStore.token}`}
+        })
+        newLeaveDate.value = ''
+        fetchLeaves()
+        alert("Time off scheduled successfully! Patients can no longer book on this date.")
+    } catch (error) {
+        console.error("Failed to submit leaves:", error)
+        alert(error.response?.data?.msg || "Failed to schedule time off.")
+    } finally {
+        isSubmitingLeave.value = false;
+    }
+}
+
 const handleLogout = () => {
     authStore.logout()  
     router.push('/login')   
@@ -176,6 +212,7 @@ const closeHistoryModal = () => {
 
 onMounted(() => {
     fetchDashboard()
+    fetchLeaves()
 })
 </script>
 
@@ -202,6 +239,9 @@ onMounted(() => {
                 </button>
                 <button :class="{ active: activeTab === 'schedule' }" @click="activeTab = 'schedule'">
                     Manage Master Schedule
+                </button>
+                <button :class="{ active: activeTab === 'leaves'}" @click="activeTab = 'leaves'">
+                    Time off & Leaves
                 </button>
             </div>
 
@@ -289,6 +329,42 @@ onMounted(() => {
                     </div>
                 </form>
             </div>
+
+            <div v-if="activeTab === 'leaves'" class="tab-content">
+                <div class="schedule-header">
+                    <h3>Manage Time off</h3>
+                    <p class="subtitle">Select dates you will be unavailable. The booking engine will automatically block these days.</p>
+                </div>
+                <div class="Leave-management-container">
+                    <!-- Form to add leave -->
+                    <form @submit.prevent="submitLeave" class="leave-form">
+                        <div class="form-group">
+                            <label>Select date for Time off</label>
+                            <div class="Leave-input-group">
+                                <input type="date" v-model="newLeaveDate" :min="todayFormatted" required>
+                                <button type="submit" class="btn-primary" :disabled="isSubmitingLeave">
+                                    {{ isSubmitingLeave ? 'Booking Date...' : 'Block Date' }}
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+
+                    <!-- List of upcoming leaves -->
+                     <div class="upcoming-leaves">
+                        <h4>Your Scheduled Time Off</h4>
+                        <ul v-if="leaves.length > 0" class="leave-list">
+                            <li v-for="leave in leaves" :key="leave.id" class="leave-item">
+                                📅 {{ leave.date }}
+                                <span class="status-badge completed">Blocked</span>
+                            </li>
+                        </ul>
+                        <div v-else class="empty-state">
+                            <p>You have no upcoming time off scheduled.</p>
+                        </div>
+                     </div>
+                </div>
+            </div>
+
             <div v-if="showConsultModal" class="modal-overlay">
                 <div class="modal-content">
                     <h3>Patient Consultation</h3>
@@ -430,4 +506,12 @@ input:checked + .slider:before { transform: translateX(20px); }
 .history-card { border: 1px solid #ddd; padding: 1rem; border-radius: 8px; background: #fdfdfd; }
 .record-header { display: flex; justify-content: space-between; border-bottom: 1px dashed #ccc; padding-bottom: 0.5rem; margin-bottom: 0.5rem; color: #7f8c8d; font-size: 0.9rem; }
 .record-date { font-weight: bold; color: #34495e; }
+
+/* Leave Management CSS */
+.leave-management-container { display: flex; flex-direction: column; gap: 2rem; }
+.leave-form { background: #f8f9fa; padding: 1.5rem; border-radius: 8px; border: 1px solid #eee; }
+.leave-input-group { display: flex; gap: 1rem; align-items: center; margin-top: 0.5rem; }
+.upcoming-leaves h4 { color: #2c3e50; border-bottom: 2px solid #f1f2f6; padding-bottom: 0.5rem; }
+.leave-list { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; }
+.leave-item { background: white; border: 1px solid #ddd; padding: 1rem; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; font-weight: bold; color: #34495e; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
 </style>
