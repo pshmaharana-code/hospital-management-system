@@ -3,6 +3,12 @@
 A robust, role-based web application designed to streamline hospital operations. This system manages patients, doctors, appointments, and medical history in a centralized, secure environment.
 
 ## 🚀 Features
+## 🏥 Current Features
+
+**God-Mode Admin Panel (In Progress)**
+* Secure Role-Based Access Control (RBAC) restricted to `admin` JWTs.
+* Real-time hospital analytics aggregation (Total Doctors, Patients, Appointments).
+* Live feed of recent hospital-wide scheduling activity.
 
 ### 1. Admin Role
 * **Dashboard:** View system statistics (Total Doctors, Patients, Appointments) with a server-side generated graphical chart.

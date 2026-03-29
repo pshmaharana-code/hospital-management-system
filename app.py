@@ -141,26 +141,45 @@ def api_register():
         return jsonify({"msg": "Failed to register user"}), 500
 
 
-@app.route('/api/admin/dashboard', methods=['GET'])
-@jwt_required()
+@app.route('/api/admin/dashboard', methods=['GET', 'OPTIONS'])
 def api_admin_dashboard():
+    if request.method == 'OPTIONS':
+        return jsonify({"msg": "CORS preflight OK"}), 200
+    
+    verify_jwt_in_request()
     #Authorization check : only admin can access this page
     claims = get_jwt()
 
     if claims.get("role") != 'admin':
         return jsonify({"msg": "Unauthorizes access. Admin only."}), 403
 
-    #fetch statistic from database
-    doctor_count = Doctor.query.count()
-    patient_count = Patient.query.count()
-    appointment_count = Appointment.query.count()
+    try:
+        #fetch statistic from database
+        total_doctors = Doctor.query.count()
+        total_patients = Patient.query.count()
+        total_appointments = Appointment.query.count()
 
-    return jsonify({"msg": "Welcome to admin dashboard.",
-                    "stats": {
-                        "doctors": doctor_count,
-                        "patients": patient_count,
-                        "appointments": appointment_count
-                    }}), 200
+        # fetch the live feed of 5 most recent appointments
+        recent_appts = Appointment.query.order_by(Appointment.id.desc()).limit(5).all()
+        recent_list = [{
+            "id": a.id,
+            "doctor": a.doctor.name if a.doctor else "Unknown",
+            "date": a.date.strftime('%Y-%m-%d'),
+            "status": a.status
+        } for a in recent_appts]
+
+        return jsonify({
+            "total_doctors": total_doctors,
+            "total_patients": total_patients,
+            "total_appointments": total_appointments,
+            "recent_activity": recent_list
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"msg": "Failed to fetch admin analytics."}), 500
+
+
 
 @app.route('/api/doctor/dashboard', methods=['GET'])
 def api_doctor_dashboard():
