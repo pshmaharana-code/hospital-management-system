@@ -64,27 +64,28 @@ const router = createRouter({
 
 
 // --- 3. THE BOUNCER (Navigation Guard) ---
-// This runs every single time the URL changes, before the new page loads
 router.beforeEach((to, from) => {
-  const authStore = useAuthStore() // look inside the vault
+  const authStore = useAuthStore()
 
-  // Check 1: are they logged in at all ?
+  // Check 1: Are they logged in at all?
   if (to.meta.requiresAuth && !authStore.token) {
     alert("Hold up! You must be logged in to view this page.")
-    return '/'  // Kick them back to the Login page
+    return '/login'  // <-- FIXED: Send to login
   }
   
-  // Check 2: are they the right kind of User ?
-  if (to.meta.requiredRole && authStore.role != to.meta.requiredRole) {
+  // Check 2: Are they the right kind of User?
+  if (to.meta.requiredRole && authStore.role !== to.meta.requiredRole) {
     alert(`Access Denied! You are a ${authStore.role}, not a ${to.meta.requiredRole}.`)
 
-    // Send them back to their own dashboard
-    if (authStore.role == 'doctor') return '/doctor-dashboard'
-    if (authStore.role == 'admin') return '/admin-dashboard'
-    return '/'
+    // <-- FIXED: Send everyone back to their proper home
+    if (authStore.role === 'admin') return '/admin-dashboard'
+    if (authStore.role === 'doctor') return '/doctor-dashboard'
+    if (authStore.role === 'patient') return '/patient-dashboard'
+    
+    return '/login' // Failsafe
   }
 
-  // Check 3: check if they pass both the check, open the door.
+  // Pass all checks, open the door
   return true
 })
 
