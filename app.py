@@ -13,6 +13,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 # This is a crucial line for running Matplotlib in a web server
 matplotlib.use('Agg')
+from werkzeug.security import generate_password_hash
 
 #initialize the flask application
 app = Flask(__name__)
@@ -160,11 +161,13 @@ def api_admin_dashboard():
         total_appointments = Appointment.query.count()
 
         # fetch the live feed of 5 most recent appointments
+        # fetch the live feed of 5 most recent appointments
         recent_appts = Appointment.query.order_by(Appointment.id.desc()).limit(5).all()
         recent_list = [{
             "id": a.id,
             "doctor": a.doctor.name if a.doctor else "Unknown",
-            "date": a.date.strftime('%Y-%m-%d'),
+            "patient": a.patient.name if a.patient else "Unknown", # <-- ADD THIS LINE BACK
+            "date": a.date,
             "status": a.status
         } for a in recent_appts]
 
@@ -178,8 +181,143 @@ def api_admin_dashboard():
         import traceback
         traceback.print_exc()
         return jsonify({"msg": "Failed to fetch admin analytics."}), 500
+    
+@app.route('/api/admin/doctors', methods=['POST', 'OPTIONS'])
+def api_admin_create_doctor():
+    # 1. CORS Preflight
+    if request.method == "OPTIONS":
+        return jsonify({"msg": "CORS Preflight OK"}), 200
+
+    # 2. Manual VIP Bouncer Check
+    verify_jwt_in_request()
+    
+    claims = get_jwt()
+    if claims.get("role") != 'admin':
+        return jsonify({"msg": "Unauthorized access. Admin only."}), 403
+    
+    #Extract doctors data
+    # Extract doctors data
+    data = request.get_json()
+    name = data.get('name')
+    username = data.get('username') # <-- Changed from email
+    password = data.get('password')
+    department_id = data.get('department_id')
+    experience = data.get('experience')
+
+    # Update validation checks
+    if not all([name, username, password, department_id]):
+        return jsonify({"msg": "Missing required fields (Name, Username, Password, Department)."}), 400
+    
+    if User.query.filter_by(username=username).first():
+        return jsonify({"msg": "A user with this username already exists."}), 400
+    
+    try:
+        hashed_password = generate_password_hash(password)
+
+        new_user = User(username=username, password=hashed_password, role='doctor')
+        db.session.add(new_user)
+        db.session.flush()
+
+        # FIXED: Pass the clean integer directly to the Doctor model! No searching required.
+        new_doctor = Doctor(user_id=new_user.id, name=name, department_id=department_id, experience=experience)
+        db.session.add(new_doctor)
+
+        db.session.commit()
+        return jsonify({"msg": f"Dr. {name} has been successfully registered!"}), 201
+
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        traceback.print_exc()
+        return jsonify({"msg": "Database error while registering doctor."}),500
+    
+@app.route('/api/admin/departments', methods=['GET', 'POST', 'OPTIONS'])
+def api_admin_departments():
+    if request.method == 'OPTIONS':
+        return jsonify({"msg": "CORS preflight OK"}), 200
+    
+    verify_jwt_in_request()
+    if get_jwt().get("role") != 'admin':
+        return jsonify({"msg": "Unauthorized access. Admin only."}), 403
+
+    # GET: Fetch all departments (for the UI table and the Doctor dropdown)
+    if request.method == 'GET':
+        try:
+            departments = Department.query.all()
+            result = []
+            for dept in departments:
+                # Count how many doctors are currently in this department
+                doctor_count = Doctor.query.filter_by(department_id=dept.id).count()
+                result.append({
+                    "id": dept.id,
+                    "name": dept.name,
+                    "description": dept.description,
+                    "doctor_count": doctor_count
+                })
+            return jsonify(result), 200
+        except Exception as e:
+            return jsonify({"msg": "Failed to fetch departments."}), 500
+
+    # POST: Create a brand new department
+    if request.method == 'POST':
+        data = request.get_json()
+        name = data.get('name')
+        description = data.get('description', '')
+
+        if not name:
+            return jsonify({"msg": "Department name is required."}), 400
+        
+        if Department.query.filter_by(name=name).first():
+            return jsonify({"msg": "A department with this name already exists."}), 400
+        
+        try:
+            new_dept = Department(name=name, description=description)
+            db.session.add(new_dept)
+            db.session.commit()
+            return jsonify({"msg": f"Department '{name}' created successfully!"}), 201
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"msg": "Database error while creating department."}), 500
 
 
+@app.route('/api/admin/departments/<int:dept_id>', methods=['PUT', 'DELETE', 'OPTIONS'])
+def api_admin_department_detail(dept_id):
+    if request.method == 'OPTIONS':
+        return jsonify({"msg": "CORS preflight OK"}), 200
+    
+    verify_jwt_in_request()
+    if get_jwt().get("role") != 'admin':
+        return jsonify({"msg": "Unauthorized access."}), 403
+
+    dept = Department.query.get(dept_id)
+    if not dept:
+        return jsonify({"msg": "Department not found."}), 404
+
+    # PUT: Update the department name/description
+    if request.method == 'PUT':
+        data = request.get_json()
+        dept.name = data.get('name', dept.name)
+        dept.description = data.get('description', dept.description)
+        try:
+            db.session.commit()
+            return jsonify({"msg": "Department updated successfully!"}), 200
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"msg": "Failed to update department."}), 500
+
+    # DELETE: Remove the department (Safety check enforced!)
+    if request.method == 'DELETE':
+        doctor_count = Doctor.query.filter_by(department_id=dept.id).count()
+        if doctor_count > 0:
+            return jsonify({"msg": f"Cannot delete. {doctor_count} doctors are currently assigned to this department."}), 400
+        
+        try:
+            db.session.delete(dept)
+            db.session.commit()
+            return jsonify({"msg": "Department deleted successfully!"}), 200
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"msg": "Failed to delete department."}), 500
 
 @app.route('/api/doctor/dashboard', methods=['GET'])
 def api_doctor_dashboard():
