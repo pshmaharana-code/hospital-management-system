@@ -338,33 +338,40 @@ def api_admin_toggle_user_status(user_id):
         return jsonify({"msg": "CORS preflight OK"}), 200
     
     verify_jwt_in_request()
-    if get_jwt().get('role') != 'admin':
+    if get_jwt().get("role") != 'admin':
         return jsonify({"msg": "Unauthorized. Admin only."}), 403
-    
+
+    # 1. Find the user
     target_user = User.query.get(user_id)
     if not target_user:
         return jsonify({"msg": "User not found."}), 404
-    
+
+    # 2. SAFETY CHECK: Only applies to Doctors
     if target_user.role == 'doctor':
         doctor_profile = Doctor.query.filter_by(user_id=target_user.id).first()
         
-        upcoming_appts = Appointment.query.filter(
-            Appointment.doctor_id == doctor_profile.id,
-            Appointment.date >= date.today(),
-            Appointment.status == 'Booked'
-        ).count()
+        if doctor_profile and target_user.status == 'active':
+            upcoming_appts = Appointment.query.filter(
+                Appointment.doctor_id == doctor_profile.id,
+                Appointment.date >= date.today(),
+                Appointment.status == 'Booked' 
+            ).count()
 
-        if upcoming_appts > 0:
-            return jsonify({"msg": f"Cannot blacklist. Dr. {doctor_profile.name} has {upcoming_appts} upcoming appointments. Please reassign or cancel them first."}), 400
-        
+            if upcoming_appts > 0:
+                return jsonify({"msg": f"Cannot blacklist. Dr. {doctor_profile.name} has {upcoming_appts} upcoming appointments. Please reassign or cancel them first."}), 400
+
+    # 3. TOGGLE THE STATUS (CRITICAL: Notice how this is aligned with the 'if' statements above!)
     new_status = 'blacklisted' if target_user.status == 'active' else 'active'
     target_user.status = new_status
-
+    
     try:
         db.session.commit()
         action = "suspended" if new_status == 'blacklisted' else "reactivated"
+        return jsonify({"msg": f"Account successfully {action}."}), 200
     except Exception as e:
         db.session.rollback()
+        import traceback
+        traceback.print_exc()
         return jsonify({"msg": "Database error while updating status."}), 500
     
 @app.route('/api/admin/system-users', methods=['GET', 'OPTIONS'])

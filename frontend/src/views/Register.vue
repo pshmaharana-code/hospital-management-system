@@ -9,6 +9,7 @@ const form = ref({
     name: '',
     contact: '',
     username: '',
+    email: '',
     password: ''
 })
 
@@ -53,6 +54,10 @@ const handleRegister = async () => {
                 <div class="form-group">
                     <label>Username</label>
                     <input type="text" v-model="form.username" required placeholder="Choose a username" />
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="text" v-model="form.email" required placeholder="Email ID" />
                 </div>
                 <div class="form-group">
                     <label>Password</label>

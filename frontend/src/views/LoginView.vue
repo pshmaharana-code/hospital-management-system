@@ -7,7 +7,7 @@ import { useAuthStore } from '../stores/auth'
 // --- VUE 3 REACTIVITY (Goodbye data() block!) ---
 // We use ref('') to create reactive variables. 
 // When the user types in the input boxes, these update automatically!
-const username = ref('')
+const identifier = ref('')
 const password = ref('')
 const errorMessage = ref('')
 
@@ -24,8 +24,8 @@ const handleLogin = async () => {
     // 1. Axios (the mail carrier) takes our data and POSTs it to Flask on Port 5000
     // Notice we use .value to get the actual text typed by the user
     const response = await axios.post('http://127.0.0.1:5000/api/login', {
-      username: username.value,
-      password: password.value
+      username: identifier.value,
+      password: password.value,
     })
 
     // 2. If Flask says "200 OK", we save the data to the Vault.
@@ -44,9 +44,11 @@ const handleLogin = async () => {
       router.push('/doctor-dashboard')
     }
   } catch (error) {
-    // 4. If Flask says "401 Unauthorized" (wrong password), we show an error on the screen
     console.error("Login Failed:", error)
-    errorMessage.value = "Invalid username or password. Please try again."
+    
+    // CRITICAL FIX: We tell Vue to look inside Flask's error response payload (error.response.data.msg). 
+    // If Flask didn't send a specific message, ONLY THEN do we fall back to the generic "Invalid credentials" string.
+    errorMessage.value = error.response?.data?.msg || "Invalid username or password. Please try again."
   }
 }
 </script>
@@ -58,8 +60,8 @@ const handleLogin = async () => {
 
     <form @submit.prevent="handleLogin">
       <div class="input-group">
-        <label>Username</label>
-        <input type="text" v-model="username" required />
+        <label>Email Address or Username</label>
+        <input type="text" v-model="identifier" placeholder="e.g. smith123@gmail.com or dr_smith" required />
       </div>
 
       <div class="input-group">
