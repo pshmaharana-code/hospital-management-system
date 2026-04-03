@@ -51,50 +51,54 @@ def home():
     return render_template('index.html')
 
 
-@app.route('/api/login', methods=['POST'])
+@app.route('/api/login', methods=['POST', 'OPTIONS'])
 def api_login():
-    # 1. Vue will send JSON data, so we grab it using get_json() instead of request.form
+    # 1. Handle Vue's CORS Preflight check
+    if request.method == 'OPTIONS':
+        return jsonify({"msg": "CORS preflight OK"}), 200
+
     data = request.get_json()
-    
     if not data:
         return jsonify({"msg": "Missing JSON data"}), 400
 
-    username = data.get('username')
+    # 2. Extract credentials. We look for 'email' first, but fallback to 'username'
+    # This means the frontend input can handle either one!
+    login_identifier = data.get('email') or data.get('username')
     password = data.get('password')
 
-    # 2. Look for user in database (Same as your old logic!)
-    user = User.query.filter_by(username=username).first()
+    if not login_identifier or not password:
+        return jsonify({"msg": "Missing credentials"}), 400
 
-    # 3. Check if user exists and password is correct
+    # 3. Look for the user by matching EITHER the email or the username
+    user = User.query.filter((User.email == login_identifier) | (User.username == login_identifier)).first()
+
+    # 4. Check if user exists and password is correct
     if user and bcrypt.check_password_hash(user.password, password):
         
-        # 4. Handle Blacklisted Users
+        # 5. Handle Blacklisted Users (The Security Gate)
         if user.status == 'blacklisted':
-            return jsonify({"msg": "This account has been blacklisted. Please contact support."}), 403
+            return jsonify({"msg": "Access Denied. Your account has been suspended by administration."}), 403
         
-        # 5. Handle Active Users & Generate Token
+        # 6. Handle Active Users & Generate Token
         if user.status == 'active':
-            
-            # Create the JWT Token. We use the user's ID as their "identity"
-            # We also attach the role so the Vue frontend knows where to redirect them!
             access_token = create_access_token(
                 identity=str(user.id), 
                 additional_claims={"role": user.role}
             )
             
-            # Return the token and user info as JSON
             return jsonify({
                 "msg": "Login Successful!",
                 "access_token": access_token,
                 "user": {
                     "id": user.id,
+                    "email": user.email, # Included email in the response payload
                     "username": user.username,
                     "role": user.role
                 }
             }), 200
 
-    # 6. If we get here, credentials failed
-    return jsonify({"msg": "Invalid username or password. Please try again."}), 401
+    # 7. If we get here, credentials failed
+    return jsonify({"msg": "Invalid credentials. Please try again."}), 401
 
 # @app.route('/logout')
 # def logout():
@@ -112,19 +116,26 @@ def api_register():
         data = request.get_json()
 
         username = data.get('username')
+        email = data.get('email') # <-- NEW: Extract the email
         password = data.get('password')
         name = data.get('name')
         contact = data.get('contact')
 
-        if not username or not password or not name or not contact:
+        # 2. Update validation to include email
+        if not username or not email or not password or not name or not contact:
             return jsonify({"msg": "Missing required fields"}), 400
         
+        # 3. The Security Gate: Block duplicate/blacklisted emails
+        if User.query.filter_by(email=email).first():
+            return jsonify({"msg": "This email is already registered."}), 409
+            
         if User.query.filter_by(username=username).first():
             return jsonify({"msg": "Username already exists"}), 409
         
         hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
 
-        new_user = User(username=username, password = hashed_password, role = 'patient', status='active')
+        # 4. Save the email to the User model
+        new_user = User(username=username, email=email, password=hashed_password, role='patient', status='active')
         db.session.add(new_user)
         db.session.flush()
 
@@ -196,25 +207,27 @@ def api_admin_create_doctor():
         return jsonify({"msg": "Unauthorized access. Admin only."}), 403
     
     #Extract doctors data
-    # Extract doctors data
     data = request.get_json()
     name = data.get('name')
-    username = data.get('username') # <-- Changed from email
+    email = data.get('email') # <-- NEW
+    username = data.get('username')
     password = data.get('password')
     department_id = data.get('department_id')
     experience = data.get('experience')
 
     # Update validation checks
-    if not all([name, username, password, department_id]):
-        return jsonify({"msg": "Missing required fields (Name, Username, Password, Department)."}), 400
+    if not all([name, email, username, password, department_id]):
+        return jsonify({"msg": "Missing required fields."}), 400
     
     if User.query.filter_by(username=username).first():
-        return jsonify({"msg": "A user with this username already exists."}), 400
+        return jsonify({"msg": "This username is already taken."}), 400
+    if User.query.filter_by(email=email).first():
+        return jsonify({"msg": "This email is already registered to an account."}), 400
     
     try:
         hashed_password = generate_password_hash(password)
 
-        new_user = User(username=username, password=hashed_password, role='doctor')
+        new_user = User(email=email, username=username, password=hashed_password, role='doctor')
         db.session.add(new_user)
         db.session.flush()
 
@@ -318,6 +331,83 @@ def api_admin_department_detail(dept_id):
         except Exception as e:
             db.session.rollback()
             return jsonify({"msg": "Failed to delete department."}), 500
+        
+@app.route('/api/admin/users/<int:user_id>/toggle-status', methods=['PATCH', 'OPTIONS'])
+def api_admin_toggle_user_status(user_id):
+    if request.method == 'OPTIONS':
+        return jsonify({"msg": "CORS preflight OK"}), 200
+    
+    verify_jwt_in_request()
+    if get_jwt().get('role') != 'admin':
+        return jsonify({"msg": "Unauthorized. Admin only."}), 403
+    
+    target_user = User.query.get(user_id)
+    if not target_user:
+        return jsonify({"msg": "User not found."}), 404
+    
+    if target_user.role == 'doctor':
+        doctor_profile = Doctor.query.filter_by(user_id=target_user.id).first()
+        
+        upcoming_appts = Appointment.query.filter(
+            Appointment.doctor_id == doctor_profile.id,
+            Appointment.date >= date.today(),
+            Appointment.status == 'Booked'
+        ).count()
+
+        if upcoming_appts > 0:
+            return jsonify({"msg": f"Cannot blacklist. Dr. {doctor_profile.name} has {upcoming_appts} upcoming appointments. Please reassign or cancel them first."}), 400
+        
+    new_status = 'blacklisted' if target_user.status == 'active' else 'active'
+    target_user.status = new_status
+
+    try:
+        db.session.commit()
+        action = "suspended" if new_status == 'blacklisted' else "reactivated"
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Database error while updating status."}), 500
+    
+@app.route('/api/admin/system-users', methods=['GET', 'OPTIONS'])
+def api_admin_get_system_users():
+    if request.method == 'OPTIONS':
+        return jsonify({"msg": "CORS preflight OK"}), 200
+    
+    verify_jwt_in_request()
+    if get_jwt().get("role") != 'admin':
+        return jsonify({"msg": "Unauthorized."}), 403
+
+    try:
+        # Fetch all doctors with their user status
+        doctors = Doctor.query.all()
+        doc_list = [{
+            "id": d.id,
+            "user_id": d.user.id,
+            "name": d.name,
+            "department": d.department.name,
+            "email": d.user.email,
+            "status": d.user.status
+        } for d in doctors if d.user] # Ensure user exists
+
+        # Fetch all patients with their user status
+        patients = Patient.query.all()
+        pat_list = [{
+            "id": p.id,
+            "user_id": p.user.id,
+            "name": p.name,
+            "contact": p.contact,
+            "email": p.user.email,
+            "status": p.user.status
+        } for p in patients if p.user]
+
+        return jsonify({
+            "doctors": doc_list,
+            "patients": pat_list
+        }), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"msg": "Failed to fetch system users."}), 500
 
 @app.route('/api/doctor/dashboard', methods=['GET'])
 def api_doctor_dashboard():
