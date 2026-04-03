@@ -31,6 +31,7 @@ with app.app_context():
             username=admin_username, 
             password=hashed_password, 
             role='admin',
+            email='admin123@gmail.com',
             status='active'
         )
         db.session.add(admin_user)
