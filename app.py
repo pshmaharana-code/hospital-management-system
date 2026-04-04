@@ -5,6 +5,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, abo
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import or_
 from sqlalchemy import and_
+from sqlalchemy import func
 from flask_bcrypt import Bcrypt
 from datetime import datetime, date, time, timedelta
 import io
@@ -182,12 +183,39 @@ def api_admin_dashboard():
             "status": a.status
         } for a in recent_appts]
 
+        # Chart 1: Doctors by Department (Pie Chart)
+        departments = Department.query.all()
+        dept_labels = []
+        dept_data = []
+        for dept in departments:
+            count = Doctor.query.filter_by(department_id=dept.id).count()
+            if count > 0: # Only show departments that actually have doctors
+                dept_labels.append(dept.name)
+                dept_data.append(count)
+        
+        # Chart 2: Appointment Status Breakdown (Doughnut Chart)
+        statuses = ['Booked', 'Completed', 'Cancelled']
+        status_data = []
+        for status in statuses:
+            count = Appointment.query.filter_by(status=status).count()
+            status_data.append(count)
+
         return jsonify({
             "total_doctors": total_doctors,
             "total_patients": total_patients,
             "total_appointments": total_appointments,
-            "recent_activity": recent_list
-        })
+            "recent_activity": recent_list,
+            "charts": {
+                "departments": {
+                    "labels": dept_labels,
+                    "data": dept_data
+                },
+                "appointments": {
+                    "labels": statuses,
+                    "data": status_data
+                }
+            }
+        }), 200
     except Exception as e:
         import traceback
         traceback.print_exc()
