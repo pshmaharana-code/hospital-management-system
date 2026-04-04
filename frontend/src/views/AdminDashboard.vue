@@ -1,8 +1,15 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
+
+// --- CHART.JS IMPORTS ---
+import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title } from 'chart.js'
+import { Pie, Doughnut } from 'vue-chartjs'
+
+// Register Chart.js components
+ChartJS.register(ArcElement, Tooltip, Legend, Title)
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -14,43 +21,64 @@ const stats = ref({
     total_doctors: 0,
     total_patients: 0,
     total_appointments: 0,
-    recent_activity: []
+    recent_activity: [],
+    charts: null // Holds the raw chart data from Flask
 })
 const isLoading = ref(true)
 const errorMessage = ref('')
 
-// --- DEPARTMENT STATE (NEW) ---
+// --- DEPARTMENT & STAFF/PATIENT STATE ---
 const departments = ref([])
 const newDepartment = ref({ name: '', description: '' })
 const isAddingDept = ref(false)
-const deptMessage = ref('')
-const deptError = ref('')
+const deptMessage = ref(''); const deptError = ref('')
 
-// --- STAFF/PATIENT STATE (NEW) ---
-const newDoctor = ref({
-    name: '',
-    email: '',
-    username: '', 
-    password: '',
-    department_id: '', // <-- Now expecting the integer ID!
-    experience: ''
-})
+const newDoctor = ref({ name: '', email: '', username: '', password: '', department_id: '', experience: '' })
 const isRegistering = ref(false)
-const registerMessage = ref('')
-const registerError = ref('')
+const registerMessage = ref(''); const registerError = ref('')
 
-const systemUsers = ref({ doctors: [], patients: []})
+const systemUsers = ref({ doctors: [], patients: [] })
 
+// --- CHART DATA FORMATTING (COMPUTED PROPS) ---
+// These automatically format the Flask data into the exact structure Chart.js demands
+const departmentChartData = computed(() => {
+    if (!stats.value.charts) return null;
+    return {
+        labels: stats.value.charts.departments.labels,
+        datasets: [{
+            data: stats.value.charts.departments.data,
+            backgroundColor: ['#3498db', '#2ecc71', '#9b59b6', '#f1c40f', '#e67e22', '#e74c3c'],
+            borderWidth: 1
+        }]
+    }
+})
+
+const appointmentChartData = computed(() => {
+    if (!stats.value.charts) return null;
+    return {
+        labels: stats.value.charts.appointments.labels,
+        datasets: [{
+            data: stats.value.charts.appointments.data,
+            backgroundColor: ['#3498db', '#2ecc71', '#e74c3c'], // Blue (Booked), Green (Completed), Red (Cancelled)
+            borderWidth: 1
+        }]
+    }
+})
+
+const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+        legend: { position: 'bottom' }
+    }
+}
 
 // --- FETCH FUNCTIONS ---
 const fetchDashboard = async () => {
     try {
-        const response = await axios.get('http://127.0.0.1:5000/api/admin/dashboard', {
-            headers: { Authorization: `Bearer ${authStore.token}` }
-        })
+        const response = await axios.get('http://127.0.0.1:5000/api/admin/dashboard', { headers: { Authorization: `Bearer ${authStore.token}` } })
         stats.value = response.data
     } catch (error) {
-        console.error("Failed to load admin dashboard:", error)
         errorMessage.value = "Could not load hospital analytics."
     } finally {
         isLoading.value = false
@@ -59,101 +87,66 @@ const fetchDashboard = async () => {
 
 const fetchDepartments = async () => {
     try {
-        const response = await axios.get('http://127.0.0.1:5000/api/admin/departments', {
-            headers: { Authorization: `Bearer ${authStore.token}` }
-        })
+        const response = await axios.get('http://127.0.0.1:5000/api/admin/departments', { headers: { Authorization: `Bearer ${authStore.token}` } })
         departments.value = response.data
-    } catch (error) {
-        console.error("Failed to load departments:", error)
-    }
+    } catch (error) {}
 }
 
 const fetchSystemUsers = async () => {
     try {
-        const response = await axios.get('http://127.0.0.1:5000/api/admin/system-users', {
-            headers: {Authorization: `Bearer ${authStore.token}`}
-        })
+        const response = await axios.get('http://127.0.0.1:5000/api/admin/system-users', { headers: { Authorization: `Bearer ${authStore.token}` } })
         systemUsers.value = response.data
-    } catch (error) {
-        console.error("Failed to fetch system users")
-    }
+    } catch (error) {}
 }
 
-// --- CRUD FUNCTIONS ---
+// --- CRUD & ACTION FUNCTIONS ---
 const addDepartment = async () => {
-    isAddingDept.value = true
-    deptMessage.value = ''
-    deptError.value = ''
+    isAddingDept.value = true; deptMessage.value = ''; deptError.value = ''
     try {
-        const response = await axios.post('http://127.0.0.1:5000/api/admin/departments', newDepartment.value, {
-            headers: { Authorization: `Bearer ${authStore.token}` }
-        })
+        const response = await axios.post('http://127.0.0.1:5000/api/admin/departments', newDepartment.value, { headers: { Authorization: `Bearer ${authStore.token}` } })
         deptMessage.value = response.data.msg
         newDepartment.value = { name: '', description: '' }
-        fetchDepartments() // Instantly refresh the list
-    } catch (error) {
-        deptError.value = error.response?.data?.msg || "Failed to add department."
-    } finally {
-        isAddingDept.value = false
-    }
+        fetchDepartments()
+    } catch (error) { deptError.value = error.response?.data?.msg || "Failed to add department." } 
+    finally { isAddingDept.value = false }
 }
 
 const deleteDepartment = async (id) => {
     if (!confirm("Are you sure you want to delete this department?")) return;
     try {
-        const response = await axios.delete(`http://127.0.0.1:5000/api/admin/departments/${id}`, {
-            headers: { Authorization: `Bearer ${authStore.token}` }
-        })
+        const response = await axios.delete(`http://127.0.0.1:5000/api/admin/departments/${id}`, { headers: { Authorization: `Bearer ${authStore.token}` } })
         alert(response.data.msg)
-        fetchDepartments() // Instantly refresh the list
-    } catch (error) {
-        alert(error.response?.data?.msg || "Failed to delete department.")
-    }
+        fetchDepartments()
+    } catch (error) { alert(error.response?.data?.msg || "Failed to delete department.") }
 }
 
 const registerDoctor = async () => {
-    isRegistering.value = true
-    registerMessage.value = ''; registerError.value = ''
+    isRegistering.value = true; registerMessage.value = ''; registerError.value = ''
     try {
-        const response = await axios.post('http://127.0.0.1:5000/api/admin/doctors', newDoctor.value, { 
-            headers: { Authorization: `Bearer ${authStore.token}` 
-
-            } 
-        })
+        const response = await axios.post('http://127.0.0.1:5000/api/admin/doctors', newDoctor.value, { headers: { Authorization: `Bearer ${authStore.token}` } })
         registerMessage.value = response.data.msg
         newDoctor.value = { name: '', email: '', username: '', password: '', department_id: '', experience: '' }
-        fetchDashboard()
-        fetchDepartments()
-        fetchSystemUsers() // Refresh the staff list
-    } catch (error) {
-        registerError.value = error.response?.data?.msg || "Failed to register the doctor."
-    } finally { isRegistering.value = false }
+        fetchDashboard(); fetchDepartments(); fetchSystemUsers();
+    } catch (error) { registerError.value = error.response?.data?.msg || "Failed to register the doctor." } 
+    finally { isRegistering.value = false }
 }
 
 const toggleUserStatus = async (userId, currentStatus) => {
     const action = currentStatus === 'active' ? 'blacklist' : 'reactivate';
     if (!confirm(`Are you sure you want to ${action} this user?`)) return;
-
     try {
-        const response = await axios.patch(`http://127.0.0.1:5000/api/admin/users/${userId}/toggle-status`, {}, {
-            headers: { Authorization: `Bearer ${authStore.token}` }
-        })
+        const response = await axios.patch(`http://127.0.0.1:5000/api/admin/users/${userId}/toggle-status`, {}, { headers: { Authorization: `Bearer ${authStore.token}` } })
         alert(response.data.msg)
-        fetchSystemUsers() // Instantly update the UI tables
-    } catch (error) {
-        alert(error.response?.data?.msg || "Failed to update user status.")
-    }
+        fetchSystemUsers()
+    } catch (error) { alert(error.response?.data?.msg || "Failed to update user status.") }
 }
 
 const handleLogout = () => {
-    authStore.logout()
-    router.push('/login')
+    authStore.logout(); router.push('/login')
 }
 
 onMounted(() => {
-    fetchDashboard()
-    fetchDepartments() // Fetch departments on load!
-    fetchSystemUsers()
+    fetchDashboard(); fetchDepartments(); fetchSystemUsers();
 })
 </script>
 
@@ -176,24 +169,33 @@ onMounted(() => {
             <div v-if="isLoading" class="loading-state">Aggregating hospital data...</div>
             <div v-else-if="errorMessage" class="error-message">{{ errorMessage }}</div>
             <div v-else>
+                
                 <div class="stats-grid">
-                    <div class="stat-card">
-                        <h3>Total Patients</h3><p class="stat-number">{{ stats.total_patients }}</p>
+                    <div class="stat-card"><h3>Total Patients</h3><p class="stat-number">{{ stats.total_patients }}</p></div>
+                    <div class="stat-card"><h3>Total Doctors</h3><p class="stat-number">{{ stats.total_doctors }}</p></div>
+                    <div class="stat-card"><h3>Total Appointments</h3><p class="stat-number">{{ stats.total_appointments }}</p></div>
+                </div>
+
+                <div class="charts-grid" v-if="stats.charts">
+                    <div class="chart-card">
+                        <h3>Staff Distribution by Department</h3>
+                        <div class="chart-wrapper">
+                            <Pie v-if="departmentChartData" :data="departmentChartData" :options="chartOptions" />
+                        </div>
                     </div>
-                    <div class="stat-card">
-                        <h3>Total Doctors</h3><p class="stat-number">{{ stats.total_doctors }}</p>
-                    </div>
-                    <div class="stat-card">
-                        <h3>Total Appointments</h3><p class="stat-number">{{ stats.total_appointments }}</p>
+                    
+                    <div class="chart-card">
+                        <h3>Appointment Health (Status)</h3>
+                        <div class="chart-wrapper">
+                            <Doughnut v-if="appointmentChartData" :data="appointmentChartData" :options="chartOptions" />
+                        </div>
                     </div>
                 </div>
 
                 <div class="recent-activity">
                     <h3>Live Hospital Feed (Recent Appointments)</h3>
                     <table class="data-table">
-                        <thead>
-                            <tr><th>Appt ID</th><th>Date</th><th>Doctor</th><th>Patient</th><th>Status</th></tr>
-                        </thead>
+                        <thead><tr><th>Appt ID</th><th>Date</th><th>Doctor</th><th>Patient</th><th>Status</th></tr></thead>
                         <tbody>
                             <tr v-for="appt in stats.recent_activity" :key="appt.id">
                                 <td><strong>#{{ appt.id }}</strong></td><td>{{ appt.date }}</td><td>Dr. {{ appt.doctor }}</td><td>{{ appt.patient }}</td>
@@ -258,19 +260,15 @@ onMounted(() => {
                 </form>
 
                 <hr class="divider">
-
                 <h3>Staff Directory & Access Control</h3>
                 <table class="data-table">
                     <thead><tr><th>Doctor Name</th><th>Department</th><th>Email</th><th>System Status</th><th>Action</th></tr></thead>
                     <tbody>
                         <tr v-for="doc in systemUsers.doctors" :key="doc.id">
                             <td><strong>Dr. {{ doc.name }}</strong></td><td>{{ doc.department }}</td><td>{{ doc.email }}</td>
+                            <td><span :class="['system-status', doc.status]">{{ doc.status.toUpperCase() }}</span></td>
                             <td>
-                                <span :class="['system-status', doc.status]">{{ doc.status.toUpperCase() }}</span>
-                            </td>
-                            <td>
-                                <button @click="toggleUserStatus(doc.user_id, doc.status)" 
-                                        :class="doc.status === 'active' ? 'btn-warning' : 'btn-success'">
+                                <button @click="toggleUserStatus(doc.user_id, doc.status)" :class="doc.status === 'active' ? 'btn-warning' : 'btn-success'">
                                     {{ doc.status === 'active' ? 'Suspend Access' : 'Reactivate' }}
                                 </button>
                             </td>
@@ -289,12 +287,9 @@ onMounted(() => {
                     <tbody>
                         <tr v-for="pat in systemUsers.patients" :key="pat.id">
                             <td><strong>{{ pat.name }}</strong></td><td>{{ pat.contact }}</td><td>{{ pat.email }}</td>
+                            <td><span :class="['system-status', pat.status]">{{ pat.status.toUpperCase() }}</span></td>
                             <td>
-                                <span :class="['system-status', pat.status]">{{ pat.status.toUpperCase() }}</span>
-                            </td>
-                            <td>
-                                <button @click="toggleUserStatus(pat.user_id, pat.status)" 
-                                        :class="pat.status === 'active' ? 'btn-warning' : 'btn-success'">
+                                <button @click="toggleUserStatus(pat.user_id, pat.status)" :class="pat.status === 'active' ? 'btn-warning' : 'btn-success'">
                                     {{ pat.status === 'active' ? 'Suspend Access' : 'Reactivate' }}
                                 </button>
                             </td>
@@ -309,7 +304,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* Keeping your existing styles... */
+/* Core Dashboard Styles */
 .dashboard-container { max-width: 1100px; margin: 2rem auto; padding: 1rem; font-family: Arial, sans-serif; }
 .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 3px solid #2c3e50; padding-bottom: 1rem; }
 .dashboard-header h2 { color: #2c3e50; margin: 0; }
@@ -320,10 +315,17 @@ onMounted(() => {
 .tabs button.active { color: #8e44ad; border-bottom-color: #8e44ad; }
 .tab-content { background: white; padding: 2rem; border-radius: 0 0 8px 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
 
-.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-bottom: 3rem; }
+.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-bottom: 2rem; }
 .stat-card { background: #f8f9fa; padding: 2rem; border-radius: 8px; text-align: center; border-top: 4px solid #8e44ad; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
 .stat-number { font-size: 3rem; font-weight: bold; color: #2c3e50; margin: 0; }
 
+/* --- NEW: CHART STYLES --- */
+.charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 3rem; }
+.chart-card { background: #ffffff; padding: 1.5rem; border-radius: 8px; border: 1px solid #eee; box-shadow: 0 2px 4px rgba(0,0,0,0.02); text-align: center; }
+.chart-card h3 { margin-top: 0; color: #2c3e50; font-size: 1.1rem; border-bottom: 2px solid #f8f9fa; padding-bottom: 0.5rem; margin-bottom: 1.5rem; }
+.chart-wrapper { position: relative; height: 250px; width: 100%; display: flex; justify-content: center; }
+
+/* Tables & Badges */
 .data-table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
 .data-table th, .data-table td { padding: 1rem; border-bottom: 1px solid #eee; text-align: left; }
 .data-table th { background: #f8f9fa; color: #2c3e50; }
@@ -333,7 +335,6 @@ onMounted(() => {
 .status-badge.completed { background: #e8f8f5; color: #27ae60; }
 .status-badge.cancelled { background: #fdedec; color: #e74c3c; }
 
-/* NEW: System Status Badges */
 .system-status { padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; font-weight: bold; }
 .system-status.active { background: #e8f8f5; color: #27ae60; border: 1px solid #27ae60; }
 .system-status.blacklisted { background: #fdedec; color: #e74c3c; border: 1px solid #e74c3c; }
