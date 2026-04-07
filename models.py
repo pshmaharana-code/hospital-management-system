@@ -63,6 +63,24 @@ class Patient(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable = False)
     user = db.relationship('User', backref=db.backref('patient', uselist = False))
 
+    #Link to familymember model
+    family_member = db.relationship('FamilyMember', backref=db.backref('primary_patient'), lazy = True, cascade="all, delete-orphan")
+    # this create a virtual list of familymember belonging to this patient
+    # 'backref' allow the familymember to instantly know who their primary patient is
+    # 'cascade="all delete-orphan" means if the main patient deletes their account ,
+    # all their family sub-accounts are automatically deleted too (keeps the DB clean).
+
+class FamilyMember(db.Model):
+    id = db.Column(db.Integer, primary_key = True)
+
+    #this line links the family member specifically to the primary parent's ID
+    patient_id = db.Column(db.Integer, db.ForeignKey('patient.id'), nullable = False)
+
+    name = db.Column(db.String(100), nullable = False)
+    relation = db.Column(db.String(50), nullable = False)
+    gender = db.Column(db.String(20), nullable = False)
+    date_of_birth = db.Column(db.String(20), nullable = False)
+
 class Appointment(db.Model):
     id = db.Column(db.Integer, primary_key = True)
     date = db.Column(db.Date, nullable = False)

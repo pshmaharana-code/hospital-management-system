@@ -253,7 +253,7 @@ def api_admin_create_doctor():
         return jsonify({"msg": "This email is already registered to an account."}), 400
     
     try:
-        hashed_password = generate_password_hash(password)
+        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
 
         new_user = User(email=email, username=username, password=hashed_password, role='doctor')
         db.session.add(new_user)
