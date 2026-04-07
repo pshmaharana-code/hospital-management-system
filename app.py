@@ -1116,11 +1116,86 @@ def api_patient_profile():
         import traceback
         traceback.print_exc()
         return jsonify({"msg": "Failed to process profile request"}), 500
+    
+# ----- PATIENT PROFILE AND FAMILY MANAGEMENT -------
+@app.route('/api/patient/family', methods=['POST', 'OPTIONS'])
+def api_add_family_member():
+    if request.method == 'OPTIONS':
+        return jsonify({"msg": "CORS preflight OK"}), 200
+    
+    verify_jwt_in_request()
+    if get_jwt().get("role") != 'patient':
+        return jsonify({"msg": "Unauthorized. Only patients can add family members."}), 403
+    
+    try:
+        #identify the patient
+        user_id = get_jwt_identity()
+        patient = Patient.query.filter_by(user_id=user_id).first()
+
+        if not patient:
+            return jsonify({"msg": "Patient profile not found."}), 404
+        
+        # Extract the data vue sends us
+        data = request.get_json()
+        name = data.get('name')
+        relation = data.get('relation')
+        gender = data.get('gender')
+        date_of_birth = data.get('date_of_birth')
+
+        if not all([name, relation, gender, date_of_birth]):
+            return jsonify({"msg": "Missing required family member details."}), 400
+        
+        new_member = FamilyMember(
+            patient_id=patient.id, 
+            name=name,
+            relation=relation,
+            gender=gender,
+            date_of_birth=date_of_birth
+        )
+
+        db.session.add()
+        db.session.commit()
+
+        return jsonify({"msg": f"{name} has been added to your family profile!"}), 201
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        db.session.rollback()
+        return jsonify({"msg": "Failed to add family member."}), 500
+    
+@app.route('/api/patient/family', methods=['GET', 'OPTIONS'])
+def api_get_family_members():
+    if request.method == 'OPTIONS':
+        return jsonify({"msg": "CORS preflight OK"}), 200
+    
+    verify_jwt_in_request()
+    if get_jwt().get("role") != 'patient':
+        return jsonify({"msg": "Unauthorized."}), 403
+    
+    try:
+        user_id = get_jwt_identity()
+        patient = Patient.query.filter_by(user_id=user_id).first()
+
+        if not patient:
+            return jsonify({"msg": "Patient profile not found."}), 404
+        
+        family_list = [{
+            "id": member.id,
+            "name": member.name,
+            "relation": member.relation,
+            "gender": member.gender,
+            "date_of_birth": member.date_of_birth
+        } for member in patient.family_members]
+
+        return jsonify(family_list), 200
+    
+    except Exception as e:
+        return jsonify({"msg": "Failed to fetch family members."}), 500
 
 
 @app.route('/admin/doctors')
 @login_required
-def manage_doctors():
+def manar_doctors():
     if current_user.role != 'admin':
         abort(403)
 
@@ -1467,7 +1542,7 @@ def admin_chart():
     return send_file(img, mimetype='image/png')
 
 
-from models import User, Doctor, Patient, Appointment, Treatment, Department, DoctorAvailability, DoctorLeave
+from models import User, Doctor, Patient, FamilyMember, Appointment, Treatment, Department, DoctorAvailability, DoctorLeave
 
 if __name__ == '__main__':
     app.run(debug=True)
