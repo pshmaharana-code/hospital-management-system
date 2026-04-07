@@ -1153,7 +1153,7 @@ def api_add_family_member():
             date_of_birth=date_of_birth
         )
 
-        db.session.add()
+        db.session.add(new_member)
         db.session.commit()
 
         return jsonify({"msg": f"{name} has been added to your family profile!"}), 201
@@ -1185,11 +1185,13 @@ def api_get_family_members():
             "relation": member.relation,
             "gender": member.gender,
             "date_of_birth": member.date_of_birth
-        } for member in patient.family_members]
+        } for member in patient.family_member]
 
         return jsonify(family_list), 200
     
     except Exception as e:
+        import traceback
+        traceback.print_exc() # <-- This tells Python to print the exact crash report!
         return jsonify({"msg": "Failed to fetch family members."}), 500
 
 

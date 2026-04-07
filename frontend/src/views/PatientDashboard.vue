@@ -166,7 +166,14 @@ onMounted(() => {
         
         <div class="dashboard-header">
             <h2>Patient Portal</h2>
-            <button @click="handleLogout" class="logout-btn">Logout</button>
+
+            <div class="header-actions">
+                <router-link to="/patient-profile" class="btn-profile">
+                    Manage Profile
+                </router-link>
+                <button @click="handleLogout" class="logout-btn">Logout</button>
+            </div>
+
         </div>
 
         <div v-if="isLoading" class="loading-state">Loading your dashboard...</div>
@@ -326,4 +333,46 @@ onMounted(() => {
 .empty-state { text-align: center; padding: 3rem; color: #7f8c8d; font-style: italic; background: #f8f9fa; border-radius: 8px; }
 .data-table { width: 100%; border-collapse: collapse; }
 .data-table th, .data-table td { padding: 1rem; border-bottom: 1px solid #eee; text-align: left; }
+
+/* Update the header to align items correctly */
+.dashboard-header { 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  margin-bottom: 2rem; 
+}
+
+/* Group the buttons together */
+.header-actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+/* Style for the new profile button */
+.btn-profile {
+  background-color: #f8f9fa;
+  color: #2c3e50;
+  border: 1px solid #ccc;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-weight: bold;
+  text-decoration: none;
+  transition: 0.2s;
+}
+
+.btn-profile:hover {
+  background-color: #e2e6ea;
+}
+
+/* Ensure your logout button still looks good */
+.logout-btn { 
+  background-color: #e74c3c; 
+  color: white; 
+  padding: 0.5rem 1rem; 
+  border: none; 
+  border-radius: 4px; 
+  cursor: pointer; 
+  font-weight: bold; 
+}
 </style>
