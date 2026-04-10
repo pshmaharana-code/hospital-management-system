@@ -909,56 +909,52 @@ def api_book_appointment():
     if claims.get("role") != 'patient':
         return jsonify({"msg": "Unauthorized. Only patients can book appointments."}), 403
 
-    # Find the patient making the request
-    current_user_id = int(get_jwt_identity())
-    patient = Patient.query.filter_by(user_id=current_user_id).first()
-    if not patient:
-        return jsonify({"msg": "Patient profile not found."}), 404
-
     try:
+        user_id = get_jwt_identity()
+        patient = Patient.query.filter_by(user_id=user_id).first()
+
+        if not patient:
+            return jsonify({"msg": "Patient profile not found"}), 404
+        
         data = request.get_json()
         doctor_id = data.get('doctor_id')
-        target_date_str = data.get('date')
-        target_time_str = data.get('time')
+        date = data.get('date')
+        time = data.get('time')
 
-        if not all([doctor_id, target_date_str, target_time_str]):
+        # fetch the family member
+        family_member_id = data.get('family_member_id')
+
+        if not all([doctor_id, date, time]):
             return jsonify({"msg": "Missing required booking details."}), 400
+        
+        # If an ID was provided, verify this family member actually belongs to this patient!
+        member_name_for_msg = patient.name
+        if family_member_id:
+            member = FamilyMember.query.filter_by(id=family_member_id, patient_id=patient.id, ).first()
+            if not member:
+                return jsonify({"msg": "Security Error: Invalid family member selected."}), 403
+            member_name_for_msg = member.name
 
-        # Convert text strings into Python date and time objects
-        target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
-        target_time = datetime.strptime(target_time_str, '%H:%M').time()
-
-        # 3. The Double-Booking Safety Net
-        # Check if this exact slot was literally just taken a millisecond ago
-        existing_booking = Appointment.query.filter_by(
-            doctor_id=doctor_id,
-            date=target_date,
-            time=target_time,
-            status='Booked'
-        ).first()
-
-        if existing_booking:
-            return jsonify({"msg": "Sorry, this slot was just booked by someone else!"}), 409
-
-        # 4. Success! Create and save the new Appointment
-        new_appointment = Appointment(
-            patient_id=patient.id,
-            doctor_id=doctor_id,
-            date=target_date,
-            time=target_time,
-            status='Booked'
+        new_appt = Appointment(
+            patient_id = patient.id,
+            doctor_id = doctor_id,
+            date = date,
+            time = time,
+            family_member_id = family_member_id,
+            status = 'Booked'
         )
-        db.session.add(new_appointment)
+
+        db.session.add(new_appt)
         db.session.commit()
 
-        return jsonify({"msg": "Appointment successfully booked!"}), 201
-
+        # Dynamic success message!
+        return jsonify({"msg": f"Appointment successfully booked for {member_name_for_msg}!"}), 201
+    
     except Exception as e:
         import traceback
         traceback.print_exc()
         db.session.rollback()
-        return jsonify({"msg": "An error occurred while booking."}), 500
-
+        return jsonify({"msg": "Failed to book appointment."}), 500
     
 
 
