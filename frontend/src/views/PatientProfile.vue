@@ -2,9 +2,9 @@
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import { useAuthStore } from '@/stores/auth'
-// --- NEW: CROPPER IMPORTS ---
-import { Cropper } from 'vue-advanced-cropper'
-import 'vue-advanced-cropper/dist/style.css'
+
+import ImageCropperModal from '@/components/ImageCropperModal.vue'
+import { resolve } from 'chart.js/helpers'
 
 const authStore = useAuthStore()
 const activeTab = ref('personal')
@@ -14,13 +14,15 @@ const profile = ref({ name: '', contact: '', username: '', age: null, gender: ''
 const isProfileLoading = ref(true)
 const updateMessage = ref('')
 
-// --- MEDIA UPLOAD & CROPPER STATE ---
-const fileInput = ref(null) 
+// --- MEDIA UPLOAD STATE ---
+const fileInput = ref(null)
 const isUploading = ref(false)
 const uploadError = ref('')
+
+// Modal state for Engine
 const showCropModal = ref(false)
-const imageSource = ref(null) // Holds the raw image for the cropper
-const cropperRef = ref(null)
+const imageTimestamp = ref(Date.now())
+const imageSource = ref(null)
 
 // --- FAMILY MEMBER STATE ---
 const familyMembers = ref([])
@@ -70,52 +72,38 @@ const onFileSelect = (event) => {
 
     const reader = new FileReader()
     reader.onload = (e) => {
-        imageSource.value = e.target.result // Pass raw image data to cropper
-        showCropModal.value = true          // Open the Instagram-style modal
+        imageSource.value = e.target.result // Load image
+        showCropModal.value = true          // Open modal
     }
     reader.readAsDataURL(file)
-    event.target.value = '' // Reset input
+    event.target.value = '' 
 }
 
-// 2. Extract the perfectly cropped square and send it to Flask
-const uploadCroppedImage = async () => {
-    if (!cropperRef.value) return
-    
-    // Extract the cropped area as a Canvas
-    const { canvas } = cropperRef.value.getResult()
-    if (!canvas) return
-
+const handleCroppedImage = async (blob) => {
     isUploading.value = true
     uploadError.value = ''
 
-    // Convert Canvas to a real file (Blob)
-    canvas.toBlob(async (blob) => {
-        const formData = new FormData()
-        formData.append('file', blob, 'profile_pic.jpg')
+    const formData = new FormData()
+    formData.append('file', blob, 'profile_pic.jpg')
 
-        try {
-            const response = await axios.post('http://127.0.0.1:5000/api/patient/profile/picture', formData, {
-                headers: { 
-                    Authorization: `Bearer ${authStore.token}`,
-                    'Content-Type': 'multipart/form-data' 
-                }
-            })
-            
-            profile.value.profile_picture = response.data.picture_url + '?t=' + new Date().getTime()
-            showCropModal.value = false // Close modal on success
-            updateMessage.value = "Profile picture updated!"
-            setTimeout(() => updateMessage.value = '', 3000)
-        } catch (error) {
-            uploadError.value = error.response?.data?.msg || "Failed to upload picture."
-        } finally {
-            isUploading.value = false
-        }
-    }, 'image/jpeg', 0.9) // Save as high-quality JPEG
-}
-
-const cancelCrop = () => {
-    showCropModal.value = false
-    imageSource.value = null
+    try {
+        const response = await axios.post('http://127.0.0.1:5000/api/patient/profile/picture', formData, {
+            headers: { Authorization: `Bearer ${authStore.token}`, 'Content-Type': 'multipart/form-data' }
+        })
+        
+        // 1. Save the clean URL from the database
+        profile.value.profile_picture = response.data.picture_url
+        // 2. Update the timestamp to force Vue to instantly re-render the image!
+        imageTimestamp.value = Date.now()
+        
+        showCropModal.value = false 
+        updateMessage.value = "Profile picture updated!"
+        setTimeout(() => updateMessage.value = '', 3000)
+    } catch (error) {
+        uploadError.value = error.response?.data?.msg || "Failed to upload picture."
+    } finally {
+        isUploading.value = false
+    }
 }
 
 const handleAddMember = async () => {
@@ -155,7 +143,7 @@ onMounted(() => { fetchProfile(); fetchFamilyMembers() })
               
               <div class="avatar-section">
                   <div class="avatar-wrapper">
-                      <img v-if="profile.profile_picture" :src="'http://127.0.0.1:5000' + profile.profile_picture" alt="Profile" class="profile-img">
+                      <img v-if="profile.profile_picture" :src="'http://127.0.0.1:5000' + profile.profile_picture + '?t=' + imageTimestamp" alt="Profile" class="profile-img">
                       <div v-else class="avatar-placeholder">{{ profile.name ? profile.name.charAt(0).toUpperCase() : '?' }}</div>
                   </div>
                   
@@ -222,29 +210,13 @@ onMounted(() => { fetchProfile(); fetchFamilyMembers() })
       </main>
     </div>
 
-    <div v-if="showCropModal" class="modal-overlay">
-        <div class="crop-modal-content">
-            <h3>Adjust Profile Picture</h3>
-            
-            <div class="cropper-wrapper">
-                <cropper 
-                    ref="cropperRef" 
-                    :src="imageSource" 
-                    :stencil-props="{ aspectRatio: 1/1 }" 
-                    class="vue-cropper"
-                />
-            </div>
-            
-            <div v-if="uploadError" class="error-msg">{{ uploadError }}</div>
-
-            <div class="crop-actions">
-                <button @click="cancelCrop" class="btn-secondary" :disabled="isUploading">Cancel</button>
-                <button @click="uploadCroppedImage" class="btn-primary" :disabled="isUploading">
-                    {{ isUploading ? 'Uploading...' : 'Crop & Save' }}
-                </button>
-            </div>
-        </div>
-    </div>
+    <ImageCropperModal 
+        :show="showCropModal"
+        :imageSource="imageSource"
+        :isUploading="isUploading"
+        @close="showCropModal = false"
+        @crop="handleCroppedImage"
+    />
 
     <div v-if="showAddModal" class="modal-overlay" @click.self="showAddModal = false">
         <div class="modal-content">
@@ -297,13 +269,6 @@ onMounted(() => { fetchProfile(); fetchFamilyMembers() })
 .btn-upload:hover { background: #e2e6ea; border-color: #b1b7ba; }
 .divider { border: 0; height: 1px; background: #eee; margin: 2rem 0; }
 
-/* NEW: CROPPER STYLES */
-.crop-modal-content { background: white; padding: 2rem; border-radius: 12px; width: 100%; max-width: 500px; text-align: center; }
-.crop-modal-content h3 { margin-top: 0; color: #2c3e50; margin-bottom: 1.5rem;}
-.cropper-wrapper { height: 350px; background: #000; margin-bottom: 1.5rem; border-radius: 8px; overflow: hidden; }
-.vue-cropper { width: 100%; height: 100%; }
-.crop-actions { display: flex; gap: 1rem; justify-content: flex-end; }
-.btn-secondary { background: #95a5a6; color: white; padding: 0.8rem 1.5rem; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
 
 /* Existing Form Styles */
 .form-section { margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid #eee; }
