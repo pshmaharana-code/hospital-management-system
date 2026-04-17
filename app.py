@@ -1,3 +1,5 @@
+import os
+from werkzeug.utils import secure_filename
 from extension import db
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt, verify_jwt_in_request
@@ -18,6 +20,34 @@ from werkzeug.security import generate_password_hash
 
 #initialize the flask application
 app = Flask(__name__)
+
+#---Media upload configuration---
+UPLOAD_FOLDER = os.path.join(os.getcwd(), 'static', 'uploads')
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jepg', 'webp'}
+
+#create folder if it doesnot exits
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def save_uploaded_image(file, prefix):
+    # """
+    # Takes an uploaded file and a prefix (e.g., 'patient_1' or 'doctor_5').
+    # Saves the file safely and returns the database-ready URL string.
+    # """
+    if file and allowed_file(file.filename):
+        from werkzeug.utils import secure_filename
+        import os
+
+        filename = secure_filename(file.filename)
+        unique_filename = f"{prefix}_{filename}"
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+
+        file.save(filepath)
+        return f"/static/uploads/{unique_filename}"
+    return None
 
 #allow the vue SPA to communicate with the flask api 
 CORS(app)
@@ -1054,64 +1084,100 @@ def api_patient_history():
         traceback.print_exc()
         return jsonify({"msg": "Failed to load patient history"}), 500
 
-@app.route('/api/patient/profile', methods = ['GET', 'PUT', 'OPTIONS'])
+@app.route('/api/patient/profile', methods=['GET', 'PUT', 'OPTIONS'])
 def api_patient_profile():
-    
     if request.method == 'OPTIONS':
-        return jsonify({"msg": "CORS Preflight OK"}), 200
-    
+        return jsonify({"msg": "CORS preflight OK"}), 200
+
     verify_jwt_in_request()
-
+    
     try:
-        current_user_id = int(get_jwt_identity())
-        patient = Patient.query.filter_by(user_id=current_user_id).first()
+        user_id = get_jwt_identity()
+        user = User.query.get(user_id)
+        patient = Patient.query.filter_by(user_id=user_id).first()
 
-        if not patient:
-            return jsonify({"msg": "Patient profile not found."}), 404
-        
+        if not patient or not user:
+            return jsonify({"msg": "Profile not found."}), 404
+
+        # --- THE GET ROUTE: Sending data to Vue on refresh ---
         if request.method == 'GET':
             return jsonify({
                 "name": patient.name,
-                "concat": patient.contact,
-                "age": patient.age,
-                "gender": patient.gender,
-                "blood_group": patient.blood_group,
-                "address": patient.address,
-                "username": patient.user.username # Pulling from the linked User table!
-            })
-        # 4. IF PUT: Save the updated data from Vue
+                "username": user.username,
+                "contact": patient.contact,          # FIXED: Ensure this is mapped correctly!
+                "age": getattr(patient, 'age', ''), 
+                "gender": getattr(patient, 'gender', ''),
+                "blood_group": getattr(patient, 'blood_group', ''),
+                "address": getattr(patient, 'address', ''),
+                "profile_picture": patient.profile_picture  # FIXED: Send the image URL to Vue!
+            }), 200
+
+        # --- THE PUT ROUTE: Saving data when you click "Save Changes" ---
         if request.method == 'PUT':
             data = request.get_json()
             
-            # Update basic text fields safely
-            patient.name = data.get('name', patient.name)
-            patient.contact = data.get('contact', patient.contact)
-            patient.gender = data.get('gender', patient.gender)
-            patient.blood_group = data.get('blood_group', patient.blood_group)
-            patient.address = data.get('address', patient.address)
-            
-            # SAFE AGE CHECK: Prevent crashes if the age box is left empty
-            age_input = data.get('age')
-            if age_input == "" or age_input is None:
-                patient.age = None
-            else:
-                patient.age = int(age_input)
-            
-            # SMART USERNAME CHECK: Only update if they actually typed a NEW username
+            # Update the User table (Username)
             new_username = data.get('username')
-            if new_username and new_username != patient.user.username:
+            if new_username and new_username != user.username:
+                # Check if username is already taken by someone else
                 existing_user = User.query.filter_by(username=new_username).first()
                 if existing_user:
-                    return jsonify({"msg": "Username already taken by another user."}), 409
-                patient.user.username = new_username
-                
+                    return jsonify({"msg": "Username is already taken."}), 400
+                user.username = new_username
+
+            # Update the Patient table
+            patient.name = data.get('name', patient.name)
+            patient.contact = data.get('contact', patient.contact) # FIXED: Save the phone number!
+            
+            # If you have these extra fields in your models.py, we save them here:
+            if hasattr(patient, 'age'): patient.age = data.get('age')
+            if hasattr(patient, 'gender'): patient.gender = data.get('gender')
+            if hasattr(patient, 'blood_group'): patient.blood_group = data.get('blood_group')
+            if hasattr(patient, 'address'): patient.address = data.get('address')
+
             db.session.commit()
-            return jsonify({"msg": "Profile updated successfully!"}), 200
-        
+            return jsonify({"msg": "Profile updated successfully."}), 200
+
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return jsonify({"msg": "Failed to process profile request"}), 500
+        db.session.rollback()
+        return jsonify({"msg": "Failed to load or update profile."}), 500
+    
+@app.route('/api/patient/profile/picture', methods=['POST', 'OPTIONS'])
+def api_upload_profile_picture():
+    if request.method == 'OPTIONS':
+        return jsonify({"msg": "CORS preflight OK"}), 200
+    verify_jwt_in_request()
+    
+    try:
+        user_id = get_jwt_identity()
+        patient = Patient.query.filter_by(user_id=user_id).first()
+
+        if not patient:
+            return jsonify({"msg": "Patient not found."}), 404
+        
+        file = request.files.get('file')
+        if not file or file.filename == '':
+            return jsonify({"msg": "No file selected."}), 400
+        
+        picture_url = save_uploaded_image(file, f"patient_{patient.id}")
+
+        if picture_url:
+            patient.profile_picture = picture_url
+            db.session.commit()
+            return jsonify({
+                "msg": "Profile picture updated successfully!",
+                "picture_url": picture_url
+            }), 200
+        return jsonify({"msg": "Invalid file type. Only JPG, PNG, and WEBP are allowed."}), 400
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"msg": "Failed to upload image."}), 500
+
+
+
     
 # ----- PATIENT PROFILE AND FAMILY MANAGEMENT -------
 @app.route('/api/patient/family', methods=['POST', 'OPTIONS'])

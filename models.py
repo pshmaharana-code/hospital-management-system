@@ -63,6 +63,8 @@ class Patient(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable = False)
     user = db.relationship('User', backref=db.backref('patient', uselist = False))
 
+    profile_picture = db.Column(db.String(255), nullable=True, default=None) # we default it to none, if its none , vue will show the initial (e.g., "P")
+
     #Link to familymember model
     family_member = db.relationship('FamilyMember', backref=db.backref('primary_patient'), lazy = True, cascade="all, delete-orphan")
     # this create a virtual list of familymember belonging to this patient
@@ -91,8 +93,11 @@ class Appointment(db.Model):
     #"many" appointments can link to "one" doctor (one-to-many), "ForeignKey goes to many side (here appointment)"
     patient_id = db.Column(db.Integer, db.ForeignKey('patient.id'), nullable = False)
 
+    family_member_id = db.Column(db.Integer, db.ForeignKey('family_member.id'), nullable = True)
+
     doctor = db.relationship('Doctor', backref=db.backref('appointments', cascade="all, delete-orphan"))
     patient = db.relationship('Patient', backref=db.backref('appointments'))
+    family_member = db.relationship('FamilyMember', backref='appointments', lazy=True)
 
 # This model stores the doctor's *default weekly schedule*
 class DoctorAvailability(db.Model):
