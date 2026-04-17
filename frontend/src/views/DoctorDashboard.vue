@@ -220,8 +220,14 @@ onMounted(() => {
     <div class="dashboard-container">
         
         <div class="dashboard-header">
-            <h2>Doctor Command Center</h2>
-            <button @click="handleLogout" class="logout-btn">Logout</button>
+            <h2>Doctor Portal</h2>
+
+            <div class="header-actions">
+                <router-link to="/doctor-profile" class="btn-profile">
+                    Manage Profile
+                </router-link>
+                <button @click="handleLogout" class="logout-btn">Logout</button>
+            </div>
         </div>
 
         <div v-if="isLoading" class="loading-state">Loading your dashboard...</div>
@@ -435,6 +441,9 @@ onMounted(() => {
 .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
 .info-card { background: #e8f4f8; padding: 1.5rem; border-radius: 8px; border-left: 5px solid #3498db; margin-bottom: 2rem; }
 .info-card h3 { margin-top: 0; color: #2980b9; }
+.header-actions {display: flex;gap: 1rem; align-items: center;}
+.btn-profile {background-color: #f8f9fa; color: #2c3e50; border: 1px solid #ccc; padding: 0.5rem 1rem; border-radius: 4px; font-weight: bold; text-decoration: none; transition: 0.2s; }
+.btn-profile:hover { background-color: #e2e6ea;}
 
 /* Tabs */
 .tabs { display: flex; gap: 10px; margin-bottom: 1rem; border-bottom: 2px solid #eee; }

@@ -48,6 +48,13 @@ const routes = [
     component: () => import('../views/DoctorDashboard.vue'),
     meta: { requiresAuth: true, requiredRole: 'doctor' } // Doctor Only
   },
+  // --- NEW: DOCTOR PROFILE ROUTE ---
+  {
+    path: '/doctor-profile',
+    name: 'doctorProfile',
+    component: () => import('../views/DoctorProfile.vue'),
+    meta: { requiresAuth: true, requiredRole: 'doctor' } // Doctor Only
+  },
   {
     path: '/admin-dashboard',
     name: 'adminDashboard',
@@ -56,12 +63,10 @@ const routes = [
   }
 ]
 
-
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes
 })
-
 
 // --- 3. THE BOUNCER (Navigation Guard) ---
 router.beforeEach((to, from) => {
@@ -70,14 +75,14 @@ router.beforeEach((to, from) => {
   // Check 1: Are they logged in at all?
   if (to.meta.requiresAuth && !authStore.token) {
     alert("Hold up! You must be logged in to view this page.")
-    return '/login'  // <-- FIXED: Send to login
+    return '/login'  // <-- Send to login
   }
   
   // Check 2: Are they the right kind of User?
   if (to.meta.requiredRole && authStore.role !== to.meta.requiredRole) {
     alert(`Access Denied! You are a ${authStore.role}, not a ${to.meta.requiredRole}.`)
 
-    // <-- FIXED: Send everyone back to their proper home
+    // <-- Send everyone back to their proper home
     if (authStore.role === 'admin') return '/admin-dashboard'
     if (authStore.role === 'doctor') return '/doctor-dashboard'
     if (authStore.role === 'patient') return '/patient-dashboard'
@@ -88,8 +93,5 @@ router.beforeEach((to, from) => {
   // Pass all checks, open the door
   return true
 })
-
-
-
 
 export default router

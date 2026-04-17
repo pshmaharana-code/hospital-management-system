@@ -27,6 +27,9 @@ class Doctor(db.Model):
     experience = db.Column(db.Integer, nullable = True)
     qualification = db.Column(db.String(200), nullable = True)
 
+    profile_picture = db.Column(db.String(255), nullable=True, default=None)
+    bio = db.Column(db.Text, nullable=True)
+
     # --- NEW: Variable Slot Duration (in minutes) ---
     slot_duration = db.Column(db.Integer, default=30, nullable = False)
     #Link to user model for login credentials

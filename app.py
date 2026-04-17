@@ -552,6 +552,88 @@ def api_doctor_dashboard():
         "days_list": days_list
     }), 200
 
+# ==========================================
+# DOCTOR PROFILE MANAGEMENT
+# ==========================================
+
+@app.route('/api/doctor/profile', methods=['GET', 'PUT', 'OPTIONS'])
+def api_doctor_profile():
+    if request.method == 'OPTIONS':
+        return jsonify({"msg": "CORS preflight OK"}), 200
+
+    verify_jwt_in_request()
+    
+    try:
+        user_id = get_jwt_identity()
+        doctor = Doctor.query.filter_by(user_id=user_id).first()
+
+        if not doctor:
+            return jsonify({"msg": "Doctor profile not found."}), 404
+
+        if request.method == 'GET':
+            return jsonify({
+                "name": doctor.name,
+                "contact": getattr(doctor, 'contact', ''),
+                "qualification": getattr(doctor, 'qualification', ''),
+                "experience": getattr(doctor, 'experience', ''),
+                "bio": getattr(doctor, 'bio', ''),
+                "profile_picture": getattr(doctor, 'profile_picture', None)
+            }), 200
+
+        if request.method == 'PUT':
+            data = request.get_json()
+            # Update the fields based on your exact schema
+            doctor.name = data.get('name', doctor.name)
+            doctor.contact = data.get('contact', doctor.contact)
+            doctor.qualification = data.get('qualification', doctor.qualification)
+            doctor.experience = data.get('experience', doctor.experience)
+            doctor.bio = data.get('bio', doctor.bio)
+            
+            db.session.commit()
+            return jsonify({"msg": "Professional profile updated successfully."}), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        db.session.rollback()
+        return jsonify({"msg": "Failed to handle profile."}), 500
+
+
+@app.route('/api/doctor/profile/picture', methods=['POST', 'OPTIONS'])
+def api_upload_doctor_picture():
+    if request.method == 'OPTIONS':
+        return jsonify({"msg": "CORS preflight OK"}), 200
+
+    verify_jwt_in_request()
+    
+    try:
+        user_id = get_jwt_identity()
+        doctor = Doctor.query.filter_by(user_id=user_id).first()
+
+        if not doctor:
+            return jsonify({"msg": "Doctor not found."}), 404
+
+        file = request.files.get('file')
+        if not file or file.filename == '':
+            return jsonify({"msg": "No file selected."}), 400
+
+        # --- USING OUR REUSABLE ENGINE ---
+        picture_url = save_uploaded_image(file, f"doctor_{doctor.id}")
+        
+        if picture_url:
+            doctor.profile_picture = picture_url
+            db.session.commit()
+            return jsonify({
+                "msg": "Profile picture updated successfully!",
+                "picture_url": picture_url
+            }), 200
+            
+        return jsonify({"msg": "Invalid file type."}), 400
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"msg": "Failed to upload image."}), 500
 
 @app.route('/api/doctor/schedule', methods=['POST','OPTIONS'])
 def api_update_doctor_schedule():
