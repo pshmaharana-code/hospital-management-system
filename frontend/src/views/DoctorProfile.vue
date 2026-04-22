@@ -9,7 +9,7 @@ import ImageCropperModal from '@/components/ImageCropperModal.vue'
 const authStore = useAuthStore()
 
 // --- PROFILE STATE ---
-const profile = ref({ name: '', contact: '', qualification: '', experience: null, bio: '', profile_picture: null })
+const profile = ref({ name: '', contact: '', qualification: '', experience: null, bio: '', profile_picture: null, consultation_fee: 500 })
 const isLoading = ref(true)
 const updateMessage = ref('')
 
@@ -149,6 +149,27 @@ onMounted(() => { fetchProfile() })
                 <div class="input-group">
                     <label>Professional Bio</label>
                     <textarea v-model="profile.bio" rows="4" placeholder="Briefly describe your specialties and background..."></textarea>
+                </div>
+
+                <hr class="divider" style="margin: 2rem 0;">
+
+                <h3>Consultation Settings</h3>
+                <p class="help-text">Set the price patients will be charged via Razorpay when booking your slots.</p>
+                <div class="row">
+                    <div class="input-group half-width">
+                        <label>Consultation Fee (₹)</label>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 1.2rem; font-weight: bold; color: #7f8c8d;">₹</span>
+                            <input 
+                                type="number" 
+                                v-model="profile.consultation_fee" 
+                                min="0" 
+                                step="50" 
+                                required 
+                                style="flex: 1;"
+                            />
+                        </div>
+                    </div>
                 </div>
             </div>
 

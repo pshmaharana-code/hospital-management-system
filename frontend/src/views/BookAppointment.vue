@@ -138,7 +138,7 @@ const confirmAndPay = async () => {
     try {
         // 1. Ask Flask for the Razorpay Order
         const orderResponse = await axios.post('http://127.0.0.1:5000/api/payments/create-order', 
-            { amount: 500 }, // Standard ₹500 fee
+            { amount: selectedDoctor.value.consultation_fee }, 
             { headers: { Authorization: `Bearer ${authStore.token}` } }
         )
 
@@ -277,8 +277,9 @@ onMounted(() => {
             <div class="grid-container">
                 <div v-for="doc in filteredDoctors" :key="doc.id" class="card doc-card" @click="chooseDoctor(doc)">
                     <h4>{{ doc.name }}</h4>
-                    <p class="experience">{{ doc.experience ? doc.experience + ' years exp.' : 'Specialist' }}</p>
-                    <button class="btn-select">Select</button>
+                    <p class="experience">{{ doc.experience }} years exp.</p>
+                    <div class="price-tag">₹{{ doc.consultation_fee }}</div> 
+                    <button class="btn-select">Select Doctor</button>
                 </div>
             </div>
         </div>
@@ -311,10 +312,10 @@ onMounted(() => {
             <div class="summary-box">
                 <p><strong>Patient:</strong> <span class="highlight">{{ selectedPatientName }}</span></p>
                 <hr class="summary-divider">
-                <p><strong>Department:</strong> {{ selectedDepartment }}</p>
                 <p><strong>Doctor:</strong> {{ selectedDoctor.name }}</p>
                 <p><strong>Date:</strong> {{ selectedDate.display }}</p>
                 <p><strong>Time:</strong> {{ selectedSlot }}</p>
+                <p><strong>Consultation Fee:</strong> <span class="price-highlight">₹{{ selectedDoctor.consultation_fee }}</span></p>
             </div>
             <button @click="confirmAndPay" class="btn-primary" :disabled="isLoading">
                 {{ isLoading ? 'Processing...' : 'Secure Slot & Pay ₹500' }}
@@ -376,4 +377,26 @@ onMounted(() => {
 .error-message { background: #ffeaa7; color: #d63031; padding: 1rem; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 1rem; }
 .success-message { text-align: center; padding: 3rem; background: #e8f8f5; color: #27ae60; border-radius: 12px; margin-top: 2rem; }
 .empty-state, .loading { text-align: center; padding: 3rem; color: #7f8c8d; font-style: italic; background: #f8f9fa; border-radius: 8px; }
+
+
+.price-tag {
+    background: #e8f8f5;
+    color: #27ae60;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-weight: bold;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+
+.price-highlight {
+    color: #27ae60;
+    font-size: 1.4rem;
+    font-weight: bold;
+    float: right;
+}
+
+.doc-card {
+    position: relative;
+}
 </style>

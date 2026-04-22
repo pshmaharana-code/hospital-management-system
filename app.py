@@ -750,6 +750,7 @@ def api_doctor_profile():
                 "qualification": getattr(doctor, 'qualification', ''),
                 "experience": getattr(doctor, 'experience', ''),
                 "bio": getattr(doctor, 'bio', ''),
+                "consultation_fee": getattr(doctor, 'consultation_fee', 500),
                 "profile_picture": getattr(doctor, 'profile_picture', None)
             }), 200
 
@@ -761,6 +762,8 @@ def api_doctor_profile():
             doctor.qualification = data.get('qualification', doctor.qualification)
             doctor.experience = data.get('experience', doctor.experience)
             doctor.bio = data.get('bio', doctor.bio)
+            if 'consultation_fee' in data:
+                doctor.consultation_fee = int(data.get('consultation_fee', 500))
             
             db.session.commit()
             return jsonify({"msg": "Professional profile updated successfully."}), 200
@@ -1129,7 +1132,8 @@ def api_get_all_doctor():
             "id": doc.id,
             "name": doc.name,
             "department": doc.department.name if doc.department else "General",
-            "experience": doc.experience
+            "experience": doc.experience,
+            "consultation_fee": doc.consultation_fee
         })
 
     return jsonify(doc_list), 200
@@ -1212,6 +1216,12 @@ def api_book_appointment():
         if not all([doctor_id, date, time]):
             return jsonify({"msg": "Missing required booking details."}), 400
         
+        try:
+            booking_date = datetime.strptime(date, '%Y-%m-%d').date()
+            booking_time = datetime.strptime(time, '%H:%M').time() # <-- ADD THIS LINE
+        except ValueError:
+            return jsonify({"msg": "Invalid date or time format."}), 400
+        
         # If an ID was provided, verify this family member actually belongs to this patient!
         member_name_for_msg = patient.name
         if family_member_id:
@@ -1223,8 +1233,8 @@ def api_book_appointment():
         new_appt = Appointment(
             patient_id = patient.id,
             doctor_id = doctor_id,
-            date = date,
-            time = time,
+            date = booking_date,
+            time = booking_time,
             family_member_id = family_member_id,
             status = 'Booked',
             payment_id=data.get('payment_id')
@@ -1279,17 +1289,7 @@ def api_patient_cancel_appointment(appointment_id):
         return jsonify({"msg": "Failed to cancel appointment."}), 500
 
 
-@app.route('/patient/doctor_profile/<int:doctor_id>')
-@login_required
-def doctor_profile(doctor_id):
-    if current_user.role != 'patient':
-        abort(403)
-        
-    # Find the doctor by their ID
-    doctor = Doctor.query.get_or_404(doctor_id)
-    
-    # Render a new template, passing the doctor's info
-    return render_template('doctor_profile.html', doctor=doctor)
+
 
     
 @app.route('/api/patient/history', methods=['GET', 'OPTIONS'])
@@ -1512,354 +1512,6 @@ def api_get_family_members():
         traceback.print_exc() # <-- This tells Python to print the exact crash report!
         return jsonify({"msg": "Failed to fetch family members."}), 500
 
-
-@app.route('/admin/doctors')
-@login_required
-def manar_doctors():
-    if current_user.role != 'admin':
-        abort(403)
-
-    #get the search query from the URL argument
-    search_query = request.args.get('search_query', '')
-    #base query
-    doctors_query = Doctor.query
-
-    #if there is a search query, filter the results
-    if search_query:
-        doctors_query = doctors_query.join(Department).filter(
-            or_(
-                Doctor.name.contains(search_query),
-                #Doctor.specialization.contains(search_query)
-                Department.name.contains(search_query)
-            )
-        )
-    #query all doctors from the database
-    doctors = doctors_query.all()
-    return render_template('manage_doctors.html', doctors=doctors)
-
-@app.route('/admin/doctors/add', methods = ['GET', 'POST'])
-@login_required
-def add_doctor():
-    if current_user.role != 'admin':
-        abort(403)
-
-    if request.method == 'POST':
-        #get data from the form
-        name = request.form.get('name')
-        #specialization = request.form.get('specialization')
-        department_id = request.form.get('department_id')
-        username = request.form.get('username')
-        password = request.form.get('password')
-        contact = request.form.get('contact')
-        experience = request.form.get('experience')
-        qualification = request.form.get('qualification')
-
-        #check if username already exist
-        existing_user = User.query.filter_by(username=username).first()
-        if existing_user:
-            flash('Username already exist. Please choose another.', 'danger')
-            departments = Department.query.all()
-            #return redirect(url_for('add_doctor'))
-            return render_template('add_doctor.html', departments=departments)
-        
-        #create the new user with doctor role
-        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
-        new_user = User(username=username, password=hashed_password, role='doctor')
-        db.session.add(new_user)
-        db.session.commit()
-
-        #create the corresponding doctor record
-        new_doctor = Doctor(name=name, department_id=department_id, user_id=new_user.id, contact=contact, experience=experience, qualification=qualification)
-        db.session.add(new_doctor)
-        db.session.commit()
-
-        #We've just created a new_doctor. Now, get their new ID.
-        doctor_id = new_doctor.id
-        
-        # Create a default 7-day availability schedule for this doctor
-        # We use 0=Monday, 1=Tuesday,and so on 6=Sunday
-        default_availability = []
-        for day in range(7):
-            default_availability.append(
-                DoctorAvailability(
-                    day_of_week=day,
-                    doctor_id=doctor_id,
-                    morning_start_time=None,
-                    morning_end_time=None,
-                    evening_start_time=None,
-                    evening_end_time=None
-                )
-            )
-        
-
-        db.session.bulk_save_objects(default_availability)
-        db.session.commit()
-
-        flash('Doctor added successfully! A default 7-day schedule was created.', 'success')
-        return redirect(url_for('manage_doctors'))
-
-    # Fetch all departments to pass to the dropdown menu
-    departments = Department.query.all()
-    return render_template('add_doctor.html', departments=departments)
-
-@app.route('/admin/departments/add', methods=['GET', 'POST'])
-@login_required
-def add_departments():
-    if current_user.role != 'admin':
-        abort(403)
-
-    if request.method == 'POST':
-        department = request.form.get('name')
-        description = request.form.get('description')
-
-        exist_dept = Department.query.filter_by(name=department).first()
-        if exist_dept:
-                flash('Department already exist.', 'danger')
-                return render_template('add_departments.html')
-
-        new_dept = Department(name=department, description=description)
-        db.session.add(new_dept)
-        db.session.commit()
-
-        flash('Department created successfully.', 'success')
-        return redirect(url_for('add_departments'))
-
-    return render_template('add_departments.html')
-
-
-@app.route('/admin/doctors/edit/<int:doctor_id>', methods = ['GET', 'POST'])
-@login_required
-def edit_doctor(doctor_id):
-    if current_user.role != 'admin':
-        abort(403)
-
-    #Find the doctor by ID, return 404 if not found
-    doctor = Doctor.query.get_or_404(doctor_id)
-
-    # Get all departments for the dropdown
-    departments = Department.query.all()
-    
-    if request.method == 'POST':
-        doctor.name = request.form.get('name')
-        #doctor.specialization = request.form.get('specialization')
-        doctor.department_id = request.form.get('department_id')
-        doctor.contact = request.form.get('contact')
-        doctor.experience = request.form.get('experience')
-        doctor.qualification = request.form.get('qualification')
-        #commit the changes to the database
-        db.session.commit()
-
-        flash('Doctor details updated successfully!', 'success')
-        return redirect(url_for('manage_doctors'))
-
-    return render_template('edit_doctor.html', doctor=doctor, departments=departments)
-
-@app.route('/admin/doctor/delete/<int:doctor_id>', methods = ['GET', 'POST'])
-@login_required
-def delete_doctor(doctor_id):
-    if current_user.role != 'admin':
-        abort(403)
-
-    #find the doctor and their associated user account
-    doctor_to_delete = Doctor.query.get_or_404(doctor_id)
-    user_to_delete = User.query.get_or_404(doctor_to_delete.user_id)
-
-    #delete both the record from database
-    db.session.delete(doctor_to_delete)
-    db.session.delete(user_to_delete)
-    db.session.commit()
-
-    flash('Doctor has been removed from the system.', 'success')
-    return redirect(url_for('manage_doctors'))
-
-@app.route('/admin/doctor/blacklist/<int:doctor_id>', methods = ['POST', 'GET'])
-@login_required
-def blacklist_doctor(doctor_id):
-    if current_user.role != 'admin':
-        abort(403)
-
-    doctor = Doctor.query.get_or_404(doctor_id)
-    user = User.query.get_or_404(doctor.user_id)
-
-    user.status = 'blacklisted'
-    db.session.commit()
-
-    flash('Doctor has been blacklisted and can no longer log in.', 'warning')
-    return redirect(url_for('manage_doctors'))
-
-@app.route('/admin/doctors/activate/<int:doctor_id>', methods=['POST', 'GET'])
-@login_required
-def activate_doctor(doctor_id):
-    if current_user.role != 'admin':
-        abort(403)
-    
-    doctor = Doctor.query.get_or_404(doctor_id)
-    user = User.query.get_or_404(doctor.user_id)
-    
-    # Update the user's status
-    user.status = 'active'
-    db.session.commit()
-    
-    flash('Doctor has been re-activated.', 'success')
-    return redirect(url_for('manage_doctors'))
-
-@app.route('/admin/patients')
-@login_required
-def manage_patients():
-    if current_user.role != 'admin':
-        abort(403)
-
-    #get the search query from the URL argument
-    search_query = request.args.get('search_query', '')
-
-    #base query for patients
-    patients_query = Patient.query
-
-    #if there is a search query, filter the result
-    if search_query:
-        patients_query = patients_query.join(User).filter(
-            or_(
-                Patient.name.contains(search_query),
-                Patient.contact.contains(search_query),
-                User.username.contains(search_query)
-            )
-        )
-
-    patients = patients_query.all()
-
-    return render_template('manage_patients.html', patients=patients)
-
-@app.route('/admin/patient/edit/<int:patient_id>', methods = ['GET', 'POST'])
-@login_required
-def edit_patient(patient_id):
-    if current_user.role != 'admin':
-        abort(403)
-
-    #find the patient by id
-    patient = Patient.query.get_or_404(patient_id)
-
-    if request.method == 'POST':
-        #get new data from the form
-        patient.name = request.form.get('name')
-        patient.contact = request.form.get('contact')
-
-        db.session.commit()
-
-        flash('Patient details updated successfully!', 'success')
-        return redirect(url_for('manage_patients'))
-    
-    return render_template('edit_patient.html', patient=patient)
-
-@app.route('/admin/patient/delete/<int:patient_id>', methods=['POST', 'GET'])
-@login_required
-def delete_patient(patient_id):
-    if current_user.role != 'admin':
-        abort(403)
-
-    #find the patient and their associate user account
-    patient_to_delete = Patient.query.get_or_404(patient_id)
-    user_to_delete = User.query.get_or_404(patient_to_delete.user_id)
-
-    #delete both the records
-    db.session.delete(patient_to_delete)
-    db.session.delete(user_to_delete)
-    db.session.commit()
-
-    flash('Patient has been removed from the system.', 'success')
-    return redirect(url_for('manage_patients'))
-
-@app.route('/admin/patient/blacklist/<int:patient_id>', methods = ['GET', 'POST'])
-@login_required
-def blacklist_patient(patient_id):
-    if current_user.role != 'admin':
-        abort(403)
-
-    patient = Patient.query.get_or_404(patient_id)
-    user = User.query.get_or_404(patient.user_id)
-
-    user.status = 'blacklisted'
-    db.session.commit()
-
-    flash('Patient has been blacklisted and can no longer log in.', 'warning')
-    return redirect(url_for('manage_patients'))
-
-@app.route('/admin/patients/activate/<int:patient_id>', methods=['POST', 'GET'])
-@login_required
-def activate_patient(patient_id):
-    if current_user.role != 'admin':
-        abort(403)
-    
-    patient = Patient.query.get_or_404(patient_id)
-    user = User.query.get_or_404(patient.user_id)
-    
-    # Update the user's status
-    user.status = 'active'
-    db.session.commit()
-    
-    flash('Patient has been re-activated.', 'success')
-    return redirect(url_for('manage_patients'))
-
-@app.route('/admin/appointments')
-@login_required
-def manage_appointments():
-    if current_user.role != 'admin':
-        abort(403)
-
-    all_appointments = Appointment.query.order_by(Appointment.date.desc(), Appointment.time.desc()).all()
-
-    return render_template('manage_appointments.html', appointments=all_appointments)
-
-@app.route('/admin/patient_history/<int:patient_id>')
-@login_required
-def admin_patient_history(patient_id):
-    # Only admins can access this page
-    if current_user.role != 'admin':
-        abort(403)
-        
-    # Find the patient
-    patient = Patient.query.get_or_404(patient_id)
-    
-    # Find all 'Completed' appointments for this patient
-    completed_appointments = Appointment.query.filter_by(
-        patient_id=patient.id,
-        status='Completed'
-    ).order_by(Appointment.date.desc(), Appointment.time.desc()).all()
-    
-    return render_template('admin_patient_history.html', patient=patient, appointments=completed_appointments)
-
-@app.route('/admin_chart.png')
-@login_required
-def admin_chart():
-    if current_user.role != 'admin':
-        abort(403)
-
-    docto_count = Doctor.query.count()
-    patient_count = Patient.query.count()
-    appointment_count = Appointment.query.count()
-
-    labels = ['Doctors', 'Patients', 'Appointments']
-    data = [docto_count, patient_count, appointment_count]
-
-    fig, ax = plt.subplots(figsize=(8, 4))
-
-    colors = ['#28a745', '#17a2b8', '#ffc107']
-    ax.bar(labels, data, color=colors)
-
-    ax.set_title('System Overview', fontsize=16)
-    ax.set_ylabel('Total Count', fontsize=12)
-
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-
-    fig.patch.set_alpha(0.0)
-    ax.patch.set_alpha(0.0)
-
-    img = io.BytesIO()
-    plt.savefig(img, format='png', bbox_inches='tight')
-    plt.close(fig) # Close the figure to free up memory
-    img.seek(0)
-
-    return send_file(img, mimetype='image/png')
 
 
 from models import User, Doctor, Patient, FamilyMember, Appointment, Treatment, Department, DoctorAvailability, DoctorLeave
