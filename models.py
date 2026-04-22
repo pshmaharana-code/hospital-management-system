@@ -1,4 +1,5 @@
 from extension import db
+from datetime import datetime
 from flask_login import UserMixin
 
 class User(db.Model, UserMixin):
@@ -8,6 +9,9 @@ class User(db.Model, UserMixin):
     password = db.Column(db.String(200), nullable=False)
     role = db.Column(db.String(50), nullable=False)
     status = db.Column(db.String(50), nullable=False, default='active') # active / blacklisted
+    # --- NEW: Security Engine Fields ---
+    reset_otp = db.Column(db.String(6), nullable=True)
+    reset_otp_expiry = db.Column(db.DateTime, nullable=True)
 
 class Department(db.Model):
     id = db.Column(db.Integer, primary_key = True)

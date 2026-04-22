@@ -1,4 +1,5 @@
 import os
+import secrets
 from werkzeug.utils import secure_filename
 from extension import db
 from flask_cors import CORS
@@ -48,6 +49,25 @@ def save_uploaded_image(file, prefix):
         file.save(filepath)
         return f"/static/uploads/{unique_filename}"
     return None
+
+def generate_secure_otp():
+    """Generates a cryptographically secure 6-digit OTP."""
+    #create a string of 6 random digit(0-9)
+    return ''.join(str(secrets.randbelow(10)) for _ in range(6))
+
+def simulate_email_delivery(username, otp):
+    """
+    Simulates sending an email by printing it clearly in the terminal.
+    In production, this is where you'd put your smtplib/SendGrid logic.
+    """
+    print(f"\n{'='*50}")
+    print(f"📧 MOCK EMAIL INTERCEPTED (DEV MODE)")
+    print(f"To: {username}")
+    print(f"Subject: Hospital Portal - Password Reset Code")
+    print(f"Message: You requested a password reset. Your secure code is:")
+    print(f"         >>> {otp} <<<")
+    print(f"This code will expire in 15 minutes.")
+    print(f"{'='*50}\n")
 
 #allow the vue SPA to communicate with the flask api 
 CORS(app)
@@ -131,11 +151,7 @@ def api_login():
     # 7. If we get here, credentials failed
     return jsonify({"msg": "Invalid credentials. Please try again."}), 401
 
-# @app.route('/logout')
-# def logout():
-#     logout_user() #Logs the user out
-#     flash('You have been logged out.', 'info')
-#     return redirect(url_for('login'))
+
 
 @app.route('/api/auth/register', methods=['POST', 'OPTIONS'])
 def api_register():
@@ -183,6 +199,109 @@ def api_register():
         db.session.rollback() # If something crashes, undo the database changes
         return jsonify({"msg": "Failed to register user"}), 500
 
+@app.route('/api/auth/forgot-password', methods=['POST', 'OPTIONS'])
+def api_forgot_password():
+    if request.method == 'OPTIONS':
+        return jsonify({"msg": "CORS preflight OK"}), 200
+    
+    try:
+        data = request.get_json()
+        username = data.get('username')
+
+        if not username:
+            return jsonify({"msg": "Please provide a username."}), 400
+        
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            return jsonify({"msg": "If that account exists, a recovery code has been sent."}), 200
+        
+        otp = generate_secure_otp()
+        expiry_time = datetime.now() + timedelta(minutes=15)
+
+        user.reset_otp = otp
+        user.reset_otp_expiry = expiry_time
+        db.session.commit()
+
+        simulate_email_delivery(user.username, otp)
+
+        return jsonify({"msg": "If that account exists, a recovery code has been sent."}), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        db.session.rollback()
+        return jsonify({"msg": "An error occurred while processing your request."}), 500
+
+
+@app.route('/api/auth/verify-otp', methods=['POST', 'OPTIONS'])
+def api_verify_otp():
+    if request.method == 'OPTIONS':
+        return jsonify({"msg": "CORS preflight OK"}), 200
+
+    try:
+        data = request.get_json()
+        username = data.get('username')
+        otp = data.get('otp')
+
+        if not username or not otp:
+            return jsonify({"msg": "Missing username or OTP."}), 400
+
+        user = User.query.filter_by(username=username).first()
+
+        # 1. Check if user exists and OTP matches
+        if not user or user.reset_otp != otp:
+            return jsonify({"msg": "Invalid or incorrect reset code."}), 401
+
+        # 2. Check if the OTP has expired
+        if not user.reset_otp_expiry or datetime.now() > user.reset_otp_expiry:
+            return jsonify({"msg": "This reset code has expired. Please request a new one."}), 401
+
+        # SUCCESS! But notice we DO NOT delete the OTP here yet. 
+        # We need it to stay alive for 1 more minute so the final reset route can use it.
+        return jsonify({"msg": "Code verified! Please enter your new password."}), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"msg": "An error occurred while verifying the code."}), 500
+
+
+@app.route('/api/auth/reset-password', methods=['POST','OPTIONS'])
+def api_reset_password():
+    if request.method == 'OPTIONS':
+        return jsonify({"msg": "CORS preflight OK"}), 200
+    
+    try:
+        data = request.get_json()
+        username = data.get('username')
+        otp = data.get('otp')
+        new_password = data.get('password')
+
+        if not all([username, otp, new_password]):
+            return jsonify({"msg": "Missing required fields."}), 400
+        
+        user = User.query.filter_by(username=username).first()
+
+        if not user or user.reset_otp != otp:
+            return jsonify({"msg": "Invalid or incorrect reset code."}), 401
+        
+        if not user.reset_otp_expiry or datetime.now() > user.reset_otp_expiry:
+            return jsonify({"msg": "This reset code has expired. Please request a new one."}), 401
+        
+        # We use your app's bcrypt instance, and decode it to a string for the database
+        user.password = bcrypt.generate_password_hash(new_password).decode('utf-8')
+
+        user.reset_otp = None
+        user.reset_otp_expiry = None
+
+        db.session.commit()
+
+        return jsonify({"msg": "Password reset successfully! You can now log in."}), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        db.session.rollback()
+        return jsonify({"msg": "An error occurred while resetting your password."}), 500
 
 @app.route('/api/admin/dashboard', methods=['GET', 'OPTIONS'])
 def api_admin_dashboard():

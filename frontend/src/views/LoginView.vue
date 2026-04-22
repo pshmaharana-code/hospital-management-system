@@ -71,6 +71,9 @@ const handleLogin = async () => {
 
       <button type="submit">Login</button>
     </form>
+    <div class="forgot-password-link" style="text-align: center; margin-top: 1rem;">
+      <router-link to="/forgot-password" style="color: #e74c3c; font-size: 0.9rem; text-decoration: none;">Forgot Password?</router-link>
+    </div>
     <div class="auth-footer" style="margin-top: 1.5rem; text-align: center; font-size: 0.9rem;">
         <p>New user? <router-link to="/register" style="color: #3498db; font-weight: bold; text-decoration: none;">Register here</router-link></p>
     </div>

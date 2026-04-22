@@ -19,6 +19,11 @@ const routes = [
     component: () => import('../views/Register.vue')
   },
   {
+    path: '/forgot-password',
+    name: 'forgotPassword',
+    component: () => import('../views/ForgotPassword.vue')
+  },
+  {
     path: '/patient-dashboard',
     name: 'PatientDashboard',
     component: () => import('../views/PatientDashboard.vue'),
