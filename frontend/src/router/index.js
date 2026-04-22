@@ -65,6 +65,11 @@ const routes = [
     name: 'adminDashboard',
     component: () => import('../views/AdminDashboard.vue'),
     meta: { requiresAuth: true, requiredRole: 'admin' } // Admin Only
+  },
+  {
+    path: '/test-payment',
+    name: 'testPayment',
+    component: () => import('../views/TestPayment.vue')
   }
 ]
 

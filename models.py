@@ -102,6 +102,8 @@ class Appointment(db.Model):
 
     family_member_id = db.Column(db.Integer, db.ForeignKey('family_member.id'), nullable = True)
 
+    payment_id = db.Column(db.String(100), nullable=True)
+
     doctor = db.relationship('Doctor', backref=db.backref('appointments', cascade="all, delete-orphan"))
     patient = db.relationship('Patient', backref=db.backref('appointments'))
     family_member = db.relationship('FamilyMember', backref='appointments', lazy=True)

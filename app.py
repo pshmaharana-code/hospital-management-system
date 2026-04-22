@@ -19,6 +19,22 @@ import matplotlib.pyplot as plt
 matplotlib.use('Agg')
 from werkzeug.security import generate_password_hash
 
+
+from dotenv import load_dotenv
+import razorpay
+
+# Load the environment variables from the .env file
+load_dotenv()
+
+# Securely fetch the keys
+RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID")
+RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
+
+# Initialize the client
+client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
+
+
+
 #initialize the flask application
 app = Flask(__name__)
 
@@ -93,6 +109,44 @@ login_manager.login_view = 'login' # Redirect to login page if the user is not l
 #It's used to retrieve a user from the database based on the ID that Flask-Login stores in the session.
 def load_user(user_id):
     return User.query.get(int(user_id))
+
+
+
+
+@app.route('/api/payments/create-order', methods=['POST', 'OPTIONS'])
+def create_payment_order():
+    if request.method == 'OPTIONS':
+        return jsonify({"msg": "CORS OK"}), 200
+        
+    verify_jwt_in_request()
+    
+    try:
+        data = request.get_json()
+        amount = data.get('amount') # Amount in Rupees
+        
+        # Razorpay expects amounts in PAISA (1 Rupee = 100 Paisa)
+        # So ₹500 must be sent as 50000
+        order_amount = int(amount) * 100 
+        order_currency = 'INR'
+        order_receipt = f"receipt_order_{secrets.token_hex(4)}"
+
+        # Create the order in Razorpay's system
+        razorpay_order = client.order.create({
+            "amount": order_amount,
+            "currency": order_currency,
+            "receipt": order_receipt,
+            "payment_capture": 1 # Auto-capture payment
+        })
+
+        return jsonify({
+            "order_id": razorpay_order['id'],
+            "amount": order_amount,
+            "key_id": RAZORPAY_KEY_ID
+        }), 200
+
+    except Exception as e:
+        print(f"Razorpay Error: {e}")
+        return jsonify({"msg": "Failed to create payment order"}), 500
 
 
 
@@ -1172,7 +1226,8 @@ def api_book_appointment():
             date = date,
             time = time,
             family_member_id = family_member_id,
-            status = 'Booked'
+            status = 'Booked',
+            payment_id=data.get('payment_id')
         )
 
         db.session.add(new_appt)

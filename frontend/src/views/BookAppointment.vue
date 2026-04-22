@@ -8,7 +8,6 @@ const authStore = useAuthStore()
 const router = useRouter()
 
 // ------WIZARD STATE------
-// We now have 6 steps! Step 1 is "Who is this for?"
 const currentStep = ref(1)
 
 const allDoctors = ref([])
@@ -16,13 +15,13 @@ const departments = ref([])
 const availableSlots = ref([])
 const availableDates = ref([])
 
-// ------NEW: PATIENT SELECTION DATA------
+// ------PATIENT SELECTION DATA------
 const mainPatientName = ref('')
 const familyMembers = ref([])
 
 // ------USER SELECTIONS-----
-const selectedFamilyMemberId = ref(null) // Null means it's for the main patient
-const selectedPatientName = ref('') // Used for the final confirmation screen
+const selectedFamilyMemberId = ref(null) 
+const selectedPatientName = ref('') 
 const selectedDepartment = ref('')
 const selectedDoctor = ref(null)
 const selectedDate = ref(null)
@@ -32,16 +31,14 @@ const isLoading = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 
-// --- NEW STEP 1: FETCH PATIENT & FAMILY PROFILES ---
+// --- STEP 1: FETCH PATIENT & FAMILY PROFILES ---
 const fetchPatientData = async () => {
     try {
-        // Get the main patient's name
         const profileRes = await axios.get('http://127.0.0.1:5000/api/patient/profile', {
             headers: { Authorization: `Bearer ${authStore.token}` }
         })
         mainPatientName.value = profileRes.data.name
 
-        // Get the family members
         const familyRes = await axios.get('http://127.0.0.1:5000/api/patient/family', {
             headers: { Authorization: `Bearer ${authStore.token}` }
         })
@@ -51,7 +48,6 @@ const fetchPatientData = async () => {
     }
 }
 
-// User clicks a patient profile (Moves to Step 2)
 const choosePatient = (isSelf, member = null) => {
     if (isSelf) {
         selectedFamilyMemberId.value = null
@@ -75,7 +71,6 @@ const fetchDoctorsAndDepartments = async () => {
     }
 }
 
-// User clicks a department (Moves to Step 3)
 const chooseDepartment = (dept) => {
     selectedDepartment.value = dept
     currentStep.value = 3
@@ -85,7 +80,6 @@ const filteredDoctors = computed(() => {
     return allDoctors.value.filter(doc => doc.department === selectedDepartment.value)
 })
 
-// User clicks a doctor (Moves to Step 4)
 const chooseDoctor = (doc) => {
     selectedDoctor.value = doc
     generateCalender()
@@ -112,7 +106,6 @@ const generateCalender = () => {
     availableDates.value = dates
 }
 
-// User clicks a date (Moves to Step 5)
 const chooseDate = async (dateObj) => {
     selectedDate.value = dateObj
     isLoading.value = true
@@ -132,39 +125,77 @@ const chooseDate = async (dateObj) => {
     }
 }
 
-// User clicks a time slot (Moves to Step 6)
 const chooseSlot = (time) => {
     selectedSlot.value = time
     currentStep.value = 6
 }
 
-// --- STEP 6: CONFIRM AND BOOK ---
-const confirmBooking = async () => {
+// --- STEP 6: CONFIRM AND PAY (RAZORPAY INTEGRATION) ---
+const confirmAndPay = async () => {
     isLoading.value = true
     errorMessage.value = ''
-    
-    // --- THE MAGIC: We now include the optional family member ID! ---
-    const payload = {
-        doctor_id: selectedDoctor.value.id,
-        date: selectedDate.value.date,
-        time: selectedSlot.value,
-        family_member_id: selectedFamilyMemberId.value 
-    }
 
     try {
-        const response = await axios.post('http://127.0.0.1:5000/api/patient/appointment', payload, {
-            headers: { Authorization: `Bearer ${authStore.token}` }
+        // 1. Ask Flask for the Razorpay Order
+        const orderResponse = await axios.post('http://127.0.0.1:5000/api/payments/create-order', 
+            { amount: 500 }, // Standard ₹500 fee
+            { headers: { Authorization: `Bearer ${authStore.token}` } }
+        )
+
+        const { order_id, amount, key_id } = orderResponse.data
+
+        // 2. Configure the Popup
+        const options = {
+            key: key_id, 
+            amount: amount, 
+            currency: "INR",
+            name: "Hospital Management System",
+            description: `Consultation with Dr. ${selectedDoctor.value.name}`,
+            order_id: order_id,
+            
+            // 3. SUCCESS HANDLER: Now we actually save the appointment!
+            handler: async function (response) {
+                try {
+                    // Send the full payload to your updated Flask route
+                    const payload = {
+                        doctor_id: selectedDoctor.value.id,
+                        date: selectedDate.value.date,
+                        time: selectedSlot.value,
+                        family_member_id: selectedFamilyMemberId.value,
+                        payment_id: response.razorpay_payment_id // Include the receipt
+                    }
+
+                    const dbResponse = await axios.post('http://127.0.0.1:5000/api/patient/appointment', payload, {
+                        headers: { Authorization: `Bearer ${authStore.token}` }
+                    })
+                    
+                    successMessage.value = dbResponse.data.msg || "Appointment Successfully Booked!"
+                    
+                    setTimeout(() => {
+                        router.push('/patient-dashboard')
+                    }, 3000)
+                    
+                } catch (saveError) {
+                    errorMessage.value = "Payment succeeded, but failed to save appointment. Please contact support."
+                } finally {
+                    isLoading.value = false
+                }
+            },
+            prefill: { name: authStore.user?.username || "Patient" },
+            theme: { color: "#3498db" }
+        }
+
+        // 4. Open the Popup
+        const rzp = new window.Razorpay(options)
+        rzp.on('payment.failed', function (response){
+            errorMessage.value = "Payment Failed or Cancelled. Appointment not booked."
+            isLoading.value = false
         })
-        
-        // We use the dynamic message from Flask ("Booked for Ayush!")
-        successMessage.value = response.data.msg || "Appointment Successfully Booked!"
-        
-        setTimeout(() => {
-            router.push('/patient-dashboard')
-        }, 3000)
+        rzp.open()
+
     } catch (error) {
-        errorMessage.value = error.response?.data?.msg || "Failed to book appointment. The slot might have just been taken."
-    } finally {
+        console.error(error)
+        errorMessage.value = "Failed to connect to payment gateway."
         isLoading.value = false
     }
 }
@@ -179,8 +210,8 @@ const goBack = () => {
 }
 
 onMounted(() => {
-    fetchPatientData() // Get the family list
-    fetchDoctorsAndDepartments() // Get the hospital data
+    fetchPatientData() 
+    fetchDoctorsAndDepartments() 
 })
 </script>
 
@@ -285,8 +316,8 @@ onMounted(() => {
                 <p><strong>Date:</strong> {{ selectedDate.display }}</p>
                 <p><strong>Time:</strong> {{ selectedSlot }}</p>
             </div>
-            <button @click="confirmBooking" class="btn-primary" :disabled="isLoading">
-                {{ isLoading ? 'Booking...' : 'Confirm & Book Appointment' }}
+            <button @click="confirmAndPay" class="btn-primary" :disabled="isLoading">
+                {{ isLoading ? 'Processing...' : 'Secure Slot & Pay ₹500' }}
             </button>
         </div>
 
