@@ -136,6 +136,140 @@ onMounted(() => {
                 </div>
             </div>
         </header>
+
+        <section id="services" class="specialties-section">
+            <div class="section-header">
+                <span class="badge">Our Expertise</span>
+                <h2 class="section-title">Centers of Excellence</h2>
+                <p class="section-subtitle">World-class medical departments equipped with state-of-the-art technology and leading specialists.</p>
+            </div>
+
+            <div class="specialties-grid">
+                <div class="specialty-card">
+                    <div class="icon-wrapper cardiology">
+                        <span class="icon-text">Cd</span>
+                    </div>
+                    <h3>Cardiology</h3>
+                    <p>Comprehensive heart care, from advanced diagnostics to complex cardiac surgeries.</p>
+                    <a href="#doctors" class="learn-more">View Specialists &rarr;</a>
+                </div>
+
+                <div class="specialty-card">
+                    <div class="icon-wrapper neurology">
+                        <span class="icon-text">Nr</span>
+                    </div>
+                    <h3>Neurology</h3>
+                    <p>Cutting-edge treatments for brain, spine, and complex nervous system disorders.</p>
+                    <a href="#doctors" class="learn-more">View Specialists &rarr;</a>
+                </div>
+
+                <div class="specialty-card">
+                    <div class="icon-wrapper orthopedics">
+                        <span class="icon-text">Op</span>
+                    </div>
+                    <h3>Orthopedics</h3>
+                    <p>Specialized treatments for bones, joint replacements, and sports medicine.</p>
+                    <a href="#doctors" class="learn-more">View Specialists &rarr;</a>
+                </div>
+
+                <div class="specialty-card">
+                    <div class="icon-wrapper pediatrics">
+                        <span class="icon-text">Pd</span>
+                    </div>
+                    <h3>Pediatrics</h3>
+                    <p>Compassionate, expert medical care for infants, children, and adolescents.</p>
+                    <a href="#doctors" class="learn-more">View Specialists &rarr;</a>
+                </div>
+            </div>
+        </section>
+
+        <section id="doctors" class="doctors-section">
+            <div class="section-header">
+                <span class="badge">World-Class Team</span>
+                <h2 class="section-title">Meet Our Experts</h2>
+                <p class="section-subtitle">Consult with highly experienced professionals dedicated to providing exceptional patient care.</p>
+            </div>
+
+            <div class="doctors-grid">
+                <div class="doctor-card">
+                    <div class="doc-avatar bg-gradient-1"></div>
+                    <div class="doc-info">
+                        <h3>Dr. Sarah Jenkins</h3>
+                        <p class="doc-dept">Senior Cardiologist</p>
+                        <div class="doc-stats">
+                            <span class="stat-badge">⭐ 4.9</span>
+                            <span class="stat-badge">12 Yrs Exp</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="doctor-card">
+                    <div class="doc-avatar bg-gradient-2"></div>
+                    <div class="doc-info">
+                        <h3>Dr. Marcus Chen</h3>
+                        <p class="doc-dept">Head of Neurology</p>
+                        <div class="doc-stats">
+                            <span class="stat-badge">⭐ 5.0</span>
+                            <span class="stat-badge">15 Yrs Exp</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="doctor-card">
+                    <div class="doc-avatar bg-gradient-3"></div>
+                    <div class="doc-info">
+                        <h3>Dr. Emily Thorne</h3>
+                        <p class="doc-dept">Pediatric Specialist</p>
+                        <div class="doc-stats">
+                            <span class="stat-badge">⭐ 4.8</span>
+                            <span class="stat-badge">8 Yrs Exp</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <footer id="contact" class="site-footer">
+            <div class="footer-cta">
+                <h2>Ready to prioritize your health?</h2>
+                <p>Join thousands of patients who trust ApexMedical for their care.</p>
+                <button @click="handleActionClick" class="btn-footer-cta">Access Patient Portal</button>
+            </div>
+
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <div class="nav-brand">
+                        <div class="logo-mark">+</div>
+                        <span class="logo-text-light">ApexMedical</span>
+                    </div>
+                    <p class="brand-desc">Redefining modern healthcare with world-class specialists and cutting-edge technology.</p>
+                </div>
+
+                <div class="footer-links">
+                    <h4>Quick Links</h4>
+                    <a href="#services">Centers of Excellence</a>
+                    <a href="#doctors">Our Specialists</a>
+                    <a href="#" @click.prevent="handleBookClick">Book Appointment</a>
+                    <a href="#" @click.prevent="handleActionClick">Patient Login</a>
+                </div>
+
+                <div class="footer-contact">
+                    <h4>Contact Us</h4>
+                    <p>123 Health Avenue, Medical District</p>
+                    <p>+1 (800) 555-APEX</p>
+                    <p>care@apexmedical.com</p>
+                </div>
+            </div>
+
+            <div class="footer-bottom">
+                <p>&copy; 2026 ApexMedical. All rights reserved.</p>
+                <div class="legal-links">
+                    <a href="#">Privacy Policy</a>
+                    <a href="#">Terms of Service</a>
+                </div>
+            </div>
+        </footer>
     </div>
 </template>
 
@@ -377,5 +511,334 @@ onMounted(() => {
     color: white;
     border-color: #0f766e;
     box-shadow: 0 4px 10px rgba(15, 118, 110, 0.3);
+}
+
+
+/* --- CENTERS OF EXCELLENCE SECTION --- */
+.specialties-section {
+    padding: 8rem 5%;
+    /* NEW: This frosted gradient dims the aura specifically for this section, making it look much cleaner */
+    background: linear-gradient(to bottom, rgba(248, 250, 252, 0.1), rgba(248, 250, 252, 0.85) 40%);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    position: relative;
+    z-index: 10;
+}
+
+.section-header {
+    text-align: center;
+    max-width: 650px;
+    margin: 0 auto 4rem;
+}
+
+.section-title {
+    font-size: 3rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin-bottom: 1.2rem;
+    letter-spacing: -1px;
+}
+
+.section-subtitle {
+    font-size: 1.15rem;
+    color: #334155; /* Darkened from #64748b for much better contrast */
+    line-height: 1.6;
+    font-weight: 500;
+}
+
+/* --- THE GRID --- */
+.specialties-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+/* --- GLASSMORPHIC SPECIALTY CARDS --- */
+.specialty-card {
+    /* Increased the white opacity from 0.6 to 0.75 so the text is always legible */
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.4) 100%);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    border-radius: 24px;
+    padding: 2.5rem 2rem;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04); /* Slightly deeper shadow */
+}
+
+.specialty-card:hover {
+    transform: translateY(-12px);
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 20px 40px rgba(15, 118, 110, 0.08);
+    border-color: #ffffff;
+}
+
+/* --- CARD INNER STYLING (The Premium Monograms) --- */
+.icon-wrapper {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.icon-text {
+    font-size: 1.4rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: #0f172a;
+}
+
+/* Sleeker, less saturated gradients for the icon boxes */
+.cardiology { background: linear-gradient(135deg, #ffe4e6, #fecdd3); }
+.neurology { background: linear-gradient(135deg, #f1f5f9, #e2e8f0); }
+.orthopedics { background: linear-gradient(135deg, #ecfdf5, #d1fae5); }
+.pediatrics { background: linear-gradient(135deg, #fefce8, #fef08a); }
+
+
+/* --- FEATURED DOCTORS SECTION --- */
+.doctors-section {
+    padding: 6rem 5% 8rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 10;
+}
+
+.doctors-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2.5rem;
+    margin-top: 2rem;
+}
+
+/* --- DOCTOR CARDS --- */
+.doctor-card {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.4) 100%);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    border-radius: 24px;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    transition: transform 0.4s ease, box-shadow 0.4s ease;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.03);
+}
+
+.doctor-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 20px 40px rgba(15, 118, 110, 0.08);
+}
+
+/* --- AVATARS --- */
+.doc-avatar {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    margin-bottom: 1.5rem;
+    border: 4px solid white;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+}
+
+.bg-gradient-1 { background: linear-gradient(135deg, #0ea5e9, #38bdf8); }
+.bg-gradient-2 { background: linear-gradient(135deg, #8b5cf6, #a78bfa); }
+.bg-gradient-3 { background: linear-gradient(135deg, #10b981, #34d399); }
+
+/* --- INFO & STATS --- */
+.doc-info h3 {
+    font-size: 1.3rem;
+    color: #0f172a;
+    margin: 0 0 0.3rem 0;
+    font-weight: 700;
+}
+
+.doc-dept {
+    color: #0f766e;
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin: 0 0 1.2rem 0;
+}
+
+.doc-stats {
+    display: flex;
+    gap: 0.8rem;
+    justify-content: center;
+    margin-bottom: 2rem;
+}
+
+.stat-badge {
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    color: #475569;
+    padding: 0.3rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+/* --- PREMIUM FOOTER --- */
+.site-footer {
+    background-color: #0f172a; /* Deep Navy/Slate to ground the page */
+    color: #f8fafc;
+    padding: 6rem 5% 2rem;
+    position: relative;
+    z-index: 20; /* Keep it above the floating aura */
+}
+
+/* --- FOOTER CTA --- */
+.footer-cta {
+    text-align: center;
+    padding-bottom: 5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: 4rem;
+}
+
+.footer-cta h2 {
+    font-size: 2.8rem;
+    font-weight: 800;
+    margin-bottom: 1rem;
+    letter-spacing: -1px;
+}
+
+.footer-cta p {
+    color: #94a3b8;
+    font-size: 1.2rem;
+    margin-bottom: 2.5rem;
+}
+
+.btn-footer-cta {
+    margin-top: 1.5rem; /* <-- ADD THIS LINE */
+    background: #10b981; 
+    color: #0f172a;
+    border: none;
+    padding: 1rem 2.5rem;
+    border-radius: 30px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.2);
+}
+
+.btn-footer-cta:hover {
+    transform: translateY(-3px);
+    background: #34d399;
+    box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+}
+
+/* --- FOOTER CONTENT GRID --- */
+.footer-content {
+    display: grid;
+    /* Changed from 2fr 1fr 1fr to distribute space more evenly */
+    grid-template-columns: 1.5fr 1fr 1.2fr; 
+    gap: 3rem; /* Reduced gap slightly to pull them together */
+    max-width: 1200px; /* Tightened the max-width so they don't drift too far apart */
+    margin: 0 auto;
+    padding-bottom: 4rem;
+}
+
+/* Responsive Grid for Mobile */
+@media (max-width: 768px) {
+    .footer-content {
+        grid-template-columns: 1fr;
+        gap: 2.5rem;
+        text-align: center;
+    }
+    .footer-brand .nav-brand { justify-content: center; }
+}
+
+.logo-text-light {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: white;
+    letter-spacing: -0.5px;
+}
+
+.brand-desc {
+    color: #cbd5e1; /* Lightened from #94a3b8 */
+    line-height: 1.6;
+    margin-top: 1.5rem;
+    max-width: 320px;
+}
+
+@media (max-width: 768px) { .brand-desc { margin: 1.5rem auto 0; } }
+
+.footer-links h4, .footer-contact h4 {
+    color: white;
+    font-size: 1.2rem;
+    margin-bottom: 1.5rem;
+    font-weight: 600;
+}
+
+.footer-links {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+}
+
+.footer-links a {
+    color: #cbd5e1; /* Lightened from #94a3b8 */
+    text-decoration: none;
+    transition: color 0.3s ease;
+    font-weight: 500;
+}
+
+.footer-links a:hover {
+    color: #10b981;
+}
+
+.footer-contact p {
+    color: #cbd5e1; /* Lightened from #94a3b8 */
+    margin-bottom: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+@media (max-width: 768px) { .footer-contact p { justify-content: center; } }
+
+/* --- FOOTER BOTTOM --- */
+.footer-bottom {
+    max-width: 1400px;
+    margin: 0 auto;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #94a3b8; /* Lightened from #64748b */
+    font-size: 0.95rem;
+}
+
+@media (max-width: 768px) {
+    .footer-bottom {
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+    }
+}
+
+.legal-links {
+    display: flex;
+    gap: 2rem;
+}
+
+.legal-links a {
+    color: #94a3b8; /* Lightened from #64748b */
+    text-decoration: none;
+    transition: color 0.3s;
+}
+
+.legal-links a:hover {
+    color: white;
 }
 </style>
