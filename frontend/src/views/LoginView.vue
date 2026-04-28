@@ -55,84 +55,238 @@ const handleLogin = async () => {
 
 
 <template>
-  <div class="login-container">
-    <h2>System Login</h2>
+    <div class="login-page">
+        <div class="aura-container">
+            <div class="aura-blob aura-blob-1"></div>
+            <div class="aura-blob aura-blob-2"></div>
+        </div>
 
-    <form @submit.prevent="handleLogin">
-      <div class="input-group">
-        <label>Email Address or Username</label>
-        <input type="text" v-model="identifier" placeholder="e.g. smith123@gmail.com or dr_smith" required />
-      </div>
+        <div class="login-wrapper">
+            <div class="brand-header" @click="$router.push('/')">
+                <div class="logo-mark">+</div>
+                <span class="logo-text">ApexMedical</span>
+            </div>
 
-      <div class="input-group">
-        <label>Passowrd</label>
-        <input type="password" v-model="password" required />
-      </div>
+            <div class="login-card">
+                <div class="card-header">
+                    <h2>System Login</h2>
+                    <p>Sign in to access your secure portal.</p>
+                </div>
 
-      <button type="submit">Login</button>
-    </form>
-    <div class="forgot-password-link" style="text-align: center; margin-top: 1rem;">
-      <router-link to="/forgot-password" style="color: #e74c3c; font-size: 0.9rem; text-decoration: none;">Forgot Password?</router-link>
+                <form class="login-form" @submit.prevent="handleLogin">
+                    <div class="input-group">
+                        <label for="identifier">Email Address or Username</label>
+                        <input 
+                            type="text" 
+                            id="identifier"
+                            v-model="identifier"
+                            placeholder="e.g. smith123@gmail.com or dr_smith" 
+                            required 
+                        />
+                    </div>
+
+                    <div class="input-group">
+                        <label for="password">Password</label>
+                        <input 
+                            type="password" 
+                            id="password"
+                            v-model="password"
+                            placeholder="••••••••" 
+                            required 
+                        />
+                    </div>
+
+                    <div class="form-options">
+                        <label class="remember-me">
+                            <input type="checkbox" />
+                            <span>Remember me</span>
+                        </label>
+                        <router-link to="/forgot-password" class="forgot-link">Forgot Password?</router-link>
+                    </div>
+
+                    <div v-if="errorMessage" class="error-alert">
+                        {{ errorMessage }}
+                    </div>
+
+                    <button type="submit" class="btn-primary">Secure Login</button>
+                </form>
+
+                <div class="register-prompt">
+                    New user? <router-link to="/register">Register here</router-link>
+                </div>
+            </div>
+        </div>
     </div>
-    <div class="auth-footer" style="margin-top: 1.5rem; text-align: center; font-size: 0.9rem;">
-        <p>New user? <router-link to="/register" style="color: #3498db; font-weight: bold; text-decoration: none;">Register here</router-link></p>
-    </div>
-
-    <p v-if="errorMessage">{{ errorMessage }}</p>
-
-  </div>
 </template>
 
 
 
-<style scoped>
-/* A little bit of CSS to make it look like a clean, professional card */
-.login-container {
-  max-width: 400px;
-  margin: 3rem auto;
-  padding: 2rem;
-  background: #f9f9f9;
-  border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+<style>
+/* --- BASE SETUP & AURA --- */
+.login-page {
+    font-family: 'Inter', -apple-system, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #f0f9ff 0%, #e6f2f2 100%);
+    position: relative;
+    overflow: hidden;
 }
 
-.input-group {
-  margin-bottom: 1.5rem;
+.aura-container {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 0; pointer-events: none;
 }
 
-label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: bold;
+.aura-blob {
+    position: absolute;
+    width: 800px; height: 800px;
+    border-radius: 50%;
+    filter: blur(100px);
+    opacity: 0.5;
 }
 
-input {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  box-sizing: border-box; 
+.aura-blob-1 { background: #bae6fd; top: -20%; left: -10%; animation: float 20s infinite alternate ease-in-out; }
+.aura-blob-2 { background: #99f6e4; bottom: -20%; right: -10%; animation: float 25s infinite alternate ease-in-out reverse; }
+
+@keyframes float {
+    0% { transform: translate(0, 0) scale(1); }
+    100% { transform: translate(50px, 50px) scale(1.1); }
 }
 
-button {
-  width: 100%;
-  padding: 0.75rem;
-  background-color: #2c3e50;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  font-size: 1.1rem;
-  cursor: pointer;
+/* --- WRAPPER & BRAND --- */
+.login-wrapper {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    max-width: 440px;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
-button:hover {
-  background-color: #34495e;
+.brand-header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 2rem;
+    cursor: pointer;
+    transition: transform 0.2s ease;
 }
 
-.error-msg {
-  color: red;
-  margin-top: 1rem;
-  text-align: center;
-  font-weight: bold;
+.brand-header:hover { transform: scale(1.02); }
+
+.logo-mark { background: #0f766e; color: white; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 10px; font-weight: bold; font-size: 1.2rem; }
+.logo-text { font-size: 1.5rem; font-weight: 800; color: #0f172a; letter-spacing: -0.5px; }
+
+/* --- GLASSMORPHIC CARD --- */
+.login-card {
+    width: 100%;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.3) 100%);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    border-radius: 24px;
+    padding: 3rem 2.5rem;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.05);
 }
+
+.card-header { text-align: center; margin-bottom: 2.5rem; }
+.card-header h2 { color: #0f172a; font-size: 1.8rem; font-weight: 800; margin-bottom: 0.5rem; letter-spacing: -0.5px; }
+.card-header p { color: #64748b; font-size: 0.95rem; }
+
+/* --- FORM INPUTS --- */
+.login-form { display: flex; flex-direction: column; gap: 1.5rem; }
+
+.input-group { display: flex; flex-direction: column; gap: 0.5rem; }
+.input-group label { font-size: 0.85rem; font-weight: 600; color: #334155; }
+
+.input-group input {
+    padding: 0.9rem 1.2rem;
+    border-radius: 12px;
+    border: 1px solid #cbd5e1;
+    background: rgba(255, 255, 255, 0.9);
+    font-size: 0.95rem;
+    color: #0f172a;
+    transition: all 0.3s ease;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+}
+
+.input-group input:focus {
+    outline: none;
+    border-color: #0f766e;
+    box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.1);
+    background: #ffffff;
+}
+
+.input-group input::placeholder {
+    color: #94a3b8;
+    font-weight: 400;
+}
+
+/* --- FORM OPTIONS --- */
+.form-options {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    margin-top: -0.5rem;
+}
+
+.remember-me { display: flex; align-items: center; gap: 0.5rem; color: #475569; cursor: pointer; }
+.remember-me input { accent-color: #0f766e; width: 16px; height: 16px; cursor: pointer; margin: 0; }
+
+.forgot-link { color: #0f766e; text-decoration: none; font-weight: 600; transition: color 0.2s; }
+.forgot-link:hover { color: #042f2c; }
+
+/* --- ERROR ALERT --- */
+.error-alert {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    color: #dc2626;
+    padding: 0.8rem;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    text-align: center;
+    font-weight: 600;
+}
+
+/* --- BUTTON & FOOTER --- */
+.btn-primary {
+    background: #0f766e;
+    color: white;
+    border: none;
+    padding: 1rem;
+    border-radius: 12px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 14px rgba(15, 118, 110, 0.25);
+    margin-top: 0.5rem;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(15, 118, 110, 0.4);
+}
+
+.register-prompt {
+    text-align: center;
+    margin-top: 2rem;
+    font-size: 0.9rem;
+    color: #64748b;
+}
+
+.register-prompt a {
+    color: #0f766e;
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.register-prompt a:hover { color: #042f2c; text-decoration: underline; }
 </style>
