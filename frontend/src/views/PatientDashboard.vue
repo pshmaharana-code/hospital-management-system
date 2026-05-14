@@ -119,7 +119,31 @@ const downloadPrescription = (record) => {
     doc.save(`ApexMedical_Prescription_${safeDate}.pdf`);
 }
 
-onMounted(() => { fetchDashboard() })
+
+// 1. Add this new ref near your other refs at the top
+const profilePic = ref(null)
+
+// 2. Add this small function to fetch just the profile picture on refresh
+const fetchProfilePic = async () => {
+    try {
+        const response = await axios.get('http://127.0.0.1:5000/api/patient/profile', {
+            headers: { Authorization: `Bearer ${authStore.token}` }
+        })
+        profilePic.value = response.data.profile_picture
+        
+        // Keep the global store synced just in case!
+        if (authStore.user) {
+            authStore.user.profile_picture = response.data.profile_picture
+        }
+    } catch (error) {
+        console.error("Failed to load profile picture:", error)
+    }
+}
+
+onMounted(() => { 
+    fetchDashboard()
+    fetchProfilePic() 
+})
 </script>
 
 <template>
@@ -172,8 +196,17 @@ onMounted(() => { fetchDashboard() })
                         <span class="notification-dot"></span>
                     </button>
                     <div class="user-profile">
-                        <div class="avatar-placeholder">PM</div>
-                        <span class="user-name">PIYUSH MAHARANA</span>
+                        <img v-if="profilePic || authStore.user?.profile_picture" 
+                            :src="`http://127.0.0.1:5000${profilePic || authStore.user?.profile_picture}`" 
+                            alt="Profile" 
+                            class="avatar-placeholder" 
+                            style="object-fit: cover; border: 2px solid #0f766e; background: white;" />
+                    
+                        <div v-else class="avatar-placeholder">
+                            {{ authStore.user?.username ? authStore.user.username.charAt(0).toUpperCase() : 'P' }}
+                        </div>
+                    
+                        <span class="user-name">{{ authStore.user?.username }}</span>
                     </div>
                 </div>
             </header>
